@@ -1,7 +1,9 @@
+mod cache;
+mod chronicler;
 mod feed;
-mod team;
 mod game;
 mod stats;
+mod team;
 
 use anyhow::Result;
 use reqwest::Client;
@@ -9,10 +11,15 @@ use rusqlite::Connection;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-const API_BASE: &str = "https://api.blaseball.com";
+const CHRONICLER_BASE: &str = "https://api.sibr.dev/chronicler";
+const SACHET_BASE: &str = "https://api.sibr.dev/eventually/sachet";
 
 lazy_static::lazy_static! {
-    static ref CLIENT: Client = Client::new();
+    static ref CLIENT: Client = Client::builder()
+        .user_agent("bricks/0.0 (iliana@sibr.dev)")
+        .build()
+        .unwrap();
+
     static ref DB: Arc<Mutex<Connection>> = {
         let path = std::env::var("BRICKS_DB").expect("BRICKS_DB environment variable not set");
         Arc::new(Mutex::new(Connection::open(path).expect("failed to open database")))

@@ -1,73 +1,54 @@
-use crate::{API_BASE, CLIENT, DB};
-use anyhow::Result;
+use crate::{cache, CLIENT, SACHET_BASE};
+use anyhow::{ensure, Result};
 use chrono::{DateTime, Utc};
-use rusqlite::{OptionalExtension, ToSql};
 use serde::Deserialize;
 
-const CACHE_KIND: &str = "GameFeed";
+const CACHE_KIND: &str = "Sachet";
 
 #[derive(Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct GameEvent {
     // must be first to verify ordering
-    metadata: GameEventMetadata,
+    pub(crate) metadata: GameEventMetadata,
 
-    player_tags: Vec<String>,
-    team_tags: Vec<String>,
-    created: DateTime<Utc>,
+    pub(crate) player_tags: Vec<String>,
+    pub(crate) team_tags: Vec<String>,
+    pub(crate) created: DateTime<Utc>,
     #[serde(rename = "type")]
-    ty: u16,
+    pub(crate) ty: u16,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "camelCase")]
-struct GameEventMetadata {
+pub(crate) struct GameEventMetadata {
     // play and sub_play must be first to verify ordering
-    play: u16,
-    sub_play: u16,
+    pub(crate) play: u16,
+    pub(crate) sub_play: u16,
 }
 
 pub(crate) async fn load_game_feed(game_id: &str) -> Result<Vec<GameEvent>> {
-    let guard = DB.lock().await;
-    let raw_value: Option<Vec<u8>> = guard
-        .query_row(
-            "SELECT value FROM caches WHERE kind = :kind AND key = :key",
-            &[(":kind", &CACHE_KIND as &dyn ToSql), (":key", &game_id)],
-            |row| row.get(0),
-        )
-        .optional()?;
-    drop(guard);
-
-    let (raw_value, from_cache) = match raw_value {
+    let (raw_value, from_cache) = match cache::load(CACHE_KIND, game_id, None).await? {
         None => (
             CLIENT
-                .get(format!(
-                    "{}/database/feed/game?id={}&sort=1",
-                    API_BASE, game_id
-                ))
+                .get(format!("{}/packets?id={}", SACHET_BASE, game_id))
                 .send()
                 .await?
                 .bytes()
                 .await?,
             false,
         ),
-        Some(v) => (zstd::decode_all(v.as_slice())?.into(), true),
+        Some(cached) => (cached.into(), true),
     };
 
     let mut value: Vec<GameEvent> = serde_json::from_slice(&raw_value)?;
     value.sort_unstable();
+    ensure!(
+        value.last().map(|event| event.ty) == Some(216),
+        "game not over"
+    );
 
     if !from_cache {
-        let compressed_value = zstd::encode_all(&*raw_value, 0)?;
-        let guard = DB.lock().await;
-        guard.execute(
-            "INSERT INTO caches (kind, key, value) VALUES (:kind, :key, :value)",
-            &[
-                (":kind", &CACHE_KIND as &dyn ToSql),
-                (":key", &game_id),
-                (":value", &compressed_value),
-            ],
-        )?;
+        cache::store(CACHE_KIND, game_id, &raw_value, None).await?;
     }
 
     Ok(value)
