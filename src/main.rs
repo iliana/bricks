@@ -33,7 +33,7 @@ async fn main() -> Result<()> {
     dotenv::dotenv().ok();
     migrations::runner().run(&mut *DB.lock().await)?;
 
-    let feed = feed::load_game_feed("781beeba-1890-4526-9dd5-094844ac884e").await?;
+    let feed = feed::load_game_feed("3b63f242-8590-4bf0-a2d7-884edb0b2e90").await?;
     println!("{:#?}", game::process_game(&feed).await?);
 
     Ok(())

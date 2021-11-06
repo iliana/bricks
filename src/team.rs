@@ -1,7 +1,7 @@
 use crate::chronicler::Versions;
 use crate::{cache, CHRONICLER_BASE, CLIENT};
 use anyhow::{Context, Result};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, SecondsFormat, Utc};
 use serde::Deserialize;
 use serde_json::value::RawValue;
 use std::ops::Range;
@@ -24,7 +24,7 @@ pub(crate) async fn load_team(team_id: &str, at: DateTime<Utc>) -> Result<Team> 
                     "{}/v2/entities?type=Team&id={}&at={}",
                     CHRONICLER_BASE,
                     team_id,
-                    at.to_rfc3339()
+                    at.to_rfc3339_opts(SecondsFormat::AutoSi, true),
                 ))
                 .send()
                 .await?;

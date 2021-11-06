@@ -16,6 +16,10 @@ pub(crate) struct GameEvent {
     pub(crate) created: DateTime<Utc>,
     #[serde(rename = "type")]
     pub(crate) ty: u16,
+    pub(crate) description: String,
+
+    pub(crate) away_pitcher: Option<String>,
+    pub(crate) home_pitcher: Option<String>,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
@@ -24,6 +28,9 @@ pub(crate) struct GameEventMetadata {
     // play and sub_play must be first to verify ordering
     pub(crate) play: u16,
     pub(crate) sub_play: u16,
+
+    pub(crate) a_player_id: Option<String>,
+    pub(crate) b_player_id: Option<String>,
 }
 
 pub(crate) async fn load_game_feed(game_id: &str) -> Result<Vec<GameEvent>> {
