@@ -12,6 +12,10 @@ const CACHE_KIND: &str = "ChroniclerTeam";
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Team {
+    pub(crate) full_name: String,
+    pub(crate) nickname: String,
+    pub(crate) shorthand: String,
+    pub(crate) emoji: String,
     pub(crate) lineup: Vec<Uuid>,
 }
 

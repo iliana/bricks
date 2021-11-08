@@ -23,6 +23,7 @@ pub(crate) struct GameEvent {
     pub(crate) away_pitcher: Option<Uuid>,
     pub(crate) home_pitcher: Option<Uuid>,
     pub(crate) base_runners: Option<Vec<Uuid>>,
+    pub(crate) bases_occupied: Option<Vec<u16>>,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
@@ -35,6 +36,13 @@ pub(crate) struct GameEventMetadata {
 
     pub(crate) a_player_id: Option<Uuid>,
     pub(crate) b_player_id: Option<Uuid>,
+    pub(crate) winner: Option<Uuid>,
+}
+
+impl GameEvent {
+    pub(crate) fn risp(&self) -> bool {
+        self.bases_occupied.iter().flatten().any(|base| *base >= 1)
+    }
 }
 
 pub(crate) async fn load_game_feed(game_id: &str) -> Result<Vec<GameEvent>> {

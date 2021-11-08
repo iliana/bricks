@@ -40,9 +40,6 @@ async fn main() -> Result<()> {
             println!("{:#?}", state);
             return Err(err);
         }
-        if state.inning == 1 {
-            break;
-        }
     }
 
     println!("{:#?}", state);
