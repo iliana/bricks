@@ -9,7 +9,7 @@ use uuid::Uuid;
 pub(crate) struct State {
     stats: AwayHome<GameStats>,
     game_started: bool,
-    winner: Option<Uuid>,
+    game_finished: bool,
     inning: u16,
     top_of_inning: bool,
     half_inning_outs: u16,
@@ -23,13 +23,18 @@ impl State {
         State {
             stats: AwayHome::default(),
             game_started: false,
-            winner: None,
+            game_finished: false,
             inning: 0,
             top_of_inning: true,
             half_inning_outs: 0,
             at_bat: None,
             on_base: HashMap::new(),
         }
+    }
+
+    pub(crate) fn finish(self) -> Result<AwayHome<GameStats>> {
+        ensure!(self.game_finished, "game incomplete");
+        Ok(self.stats)
     }
 
     pub(crate) async fn push(&mut self, event: &GameEvent) -> Result<()> {
@@ -102,48 +107,7 @@ impl State {
                             || desc.contains("out at")
                             || desc.ends_with("hit into a double play!")
                     );
-                    if let Some((out, _)) = desc.rsplit_once(" out at ") {
-                        ensure!(
-                            event.metadata.sibling_ids.len() == 2,
-                            "incorrect number of events for fielder's choice"
-                        );
-                        let out = *self
-                            .offense()
-                            .player_names
-                            .iter()
-                            .find(|(_, name)| name == &out)
-                            .with_context(|| {
-                                format!("could not determine id for baserunner {}", out)
-                            })?
-                            .0;
-                        self.on_base
-                            .remove(&out)
-                            .context("baserunner out in fielder's choice not on base")?;
-                        self.on_base.insert(self.batter()?, self.pitcher()?);
-                    }
-                    if desc.ends_with("hit into a double play!") {
-                        self.half_inning_outs += 1;
-                        self.record_pitcher_event(|s| &mut s.outs_recorded)?;
-                        if self.on_base.len() == 1 {
-                            self.on_base.clear();
-                        } else {
-                            // uh-oh. see the thing here is, the Feed doesn't tell us who the other
-                            // out was on, and we have multiple runners on. we'll need to rely on
-                            // the baseRunners object merged in from sachet.
-                            let base_runners = event
-                                .base_runners
-                                .as_ref()
-                                .context("unable to determine runner out in double play")?;
-                            let out = self
-                                .on_base
-                                .keys()
-                                .find(|runner| !base_runners.contains(runner))
-                                .copied()
-                                .context("unable to determine runner out in double play")?;
-                            self.on_base.remove(&out);
-                        }
-                    }
-                    self.batter_out(event)?;
+                    self.fielded_out(event)?;
                 } else if event.metadata.sub_play == 1 {
                     checkdesc!(desc.ends_with("reaches on fielder's choice."));
                 } else {
@@ -153,7 +117,7 @@ impl State {
             9 => checkdesc!(self.home_run(event)?),
             10 => checkdesc!(self.hit(event)?),
             11 => {
-                self.winner = event.metadata.winner;
+                self.game_finished = true;
             }
             12 => {
                 // Start of plate appearance
@@ -248,6 +212,53 @@ impl State {
         self.on_base.clear();
 
         Ok(())
+    }
+
+    fn fielded_out(&mut self, event: &GameEvent) -> Result<()> {
+        // fielder's choice
+        if let Some((out, _)) = event.description.rsplit_once(" out at ") {
+            ensure!(
+                event.metadata.sibling_ids.len() == 2,
+                "incorrect number of events for fielder's choice"
+            );
+            let out = *self
+                .offense()
+                .player_names
+                .iter()
+                .find(|(_, name)| name == &out)
+                .with_context(|| format!("could not determine id for baserunner {}", out))?
+                .0;
+            self.on_base
+                .remove(&out)
+                .context("baserunner out in fielder's choice not on base")?;
+            self.on_base.insert(self.batter()?, self.pitcher()?);
+        }
+
+        // double play
+        if event.description.ends_with("hit into a double play!") {
+            self.half_inning_outs += 1;
+            self.record_pitcher_event(|s| &mut s.outs_recorded)?;
+            if self.on_base.len() == 1 {
+                self.on_base.clear();
+            } else {
+                // uh-oh. see the thing here is, the Feed doesn't tell us who the other
+                // out was on, and we have multiple runners on. we'll need to rely on
+                // the baseRunners object merged in from sachet.
+                let base_runners = event
+                    .base_runners
+                    .as_ref()
+                    .context("unable to determine runner out in double play")?;
+                let out = self
+                    .on_base
+                    .keys()
+                    .find(|runner| !base_runners.contains(runner))
+                    .copied()
+                    .context("unable to determine runner out in double play")?;
+                self.on_base.remove(&out);
+            }
+        }
+
+        self.batter_out(event)
     }
 
     fn batter_out(&mut self, event: &GameEvent) -> Result<()> {

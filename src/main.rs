@@ -36,13 +36,9 @@ async fn main() -> Result<()> {
     let feed = feed::load_game_feed("3b63f242-8590-4bf0-a2d7-884edb0b2e90").await?;
     let mut state = game::State::new();
     for event in &feed {
-        if let Err(err) = state.push(event).await {
-            println!("{:#?}", state);
-            return Err(err);
-        }
+        state.push(event).await?;
     }
-
-    println!("{:#?}", state);
+    println!("{:#?}", state.finish()?);
 
     Ok(())
 }
