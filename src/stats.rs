@@ -108,7 +108,7 @@ impl GameStats {
                 v.push(self.box_name(id).into());
             }
         }
-        v.join(", ")
+        v.join("; ")
     }
 
     pub(crate) fn box_batting_lists(&self) -> BoxList {
