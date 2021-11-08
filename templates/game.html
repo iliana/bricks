@@ -1,11 +1,101 @@
 <!DOCTYPE html>
-<html>
+<html class="dark">
   <head>
     <meta charset="utf-8" />
+    <link rel="stylesheet" href="/styles.css" />
   </head>
-  <body>
-    <div class="container">
-      <h1 class="text-4xl font-bold">Hello, world!</h1>
+  <body class="bg-white dark:bg-black text-black dark:text-white leading-relaxed">
+    <div class="bg-gray-100 dark:bg-gray-900 py-4">
+      <div class="container mx-auto">
+        <a class="font-bold" href="/">Bricks <span aria-hidden="true">:(🧱)</span></a>
+      </div>
+    </div>
+
+    <div class="container mx-auto">
+      <h1 class="text-center text-4xl font-bold my-6">
+        {{ stats.away.name }} {{ stats.away.runs() }}, {{ stats.home.name }} {{ stats.home.runs() }}
+      </h1>
+
+      <table class="mx-auto my-4">
+        <tr class="text-sm">
+          <td></td>
+          {% for (inning, _) in stats.away.inning_run_totals %}
+          <th class="w-8 px-2">{{ inning }}</th>
+          {% endfor %}
+          <th class="w-8 px-2"><abbr title="Runs">R</abbr></th>
+          <th class="w-8 px-2"><abbr title="Hits">H</abbr></th>
+        </tr>
+        {% for team in stats %}
+        <tr>
+          <th class="text-left pr-1">
+            <span class="pr-2">{{ team.emoji | emoji }}</span>
+            <abbr title="{{ team.name }}">{{ team.shorthand }}</abbr>
+          </th>
+          {% for (_, runs) in team.inning_run_totals %}
+          <td class="text-center px-2">{{ runs }}</td>
+          {% endfor %}
+          <td class="text-center font-bold px-2">{{ team.runs() }}</td>
+          <td class="text-center font-bold px-2">{{ team.totals.hits() }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+
+      <div class="flex gap-x-12 justify-center my-4">
+        {% for team in stats %}
+        <div class="w-1/2">
+          <table class="w-full leading-loose my-4 -mx-2">
+            <tr class="text-sm">
+              <th class="text-left w-max pl-2 pr-6">
+                Batters – <abbr title="{{ team.name }}">{{ team.shorthand }}</abbr>
+              </th>
+              <th class="w-12 px-2 text-right"><abbr title="At Bats">AB</abbr></th>
+              <th class="w-12 px-2 text-right"><abbr title="Runs">R</abbr></th>
+              <th class="w-12 px-2 text-right"><abbr title="Hits">H</abbr></th>
+              <th class="w-12 px-2 text-right"><abbr title="Runs Batted In">RBI</abbr></th>
+              <th class="w-12 px-2 text-right"><abbr title="Bases on Balls (Walks)">BB</abbr></th>
+              <th class="w-12 px-2 text-right"><abbr title="Strikeouts">SO</abbr></th>
+              <th class="w-12 px-2 text-right"><abbr title="Left on Base">LOB</abbr></th>
+            </tr>
+            {% for row in team.lineup %}{% for player in row %}
+            <tr class="hover:bg-yellow-100 dark:hover:bg-yellow-900">
+              <td class="w-max pl-2 pr-6">{{ team.box_name(player) }}</td>
+              {% let player_stats = team.player_stats(player) %}
+              <td class="text-right w-12 px-2">{{ player_stats.at_bats }}</td>
+              <td class="text-right w-12 px-2">{{ player_stats.runs }}</td>
+              <td class="text-right w-12 px-2">{{ player_stats.hits() }}</td>
+              <td class="text-right w-12 px-2">{{ player_stats.runs_batted_in }}</td>
+              <td class="text-right w-12 px-2">{{ player_stats.walks }}</td>
+              <td class="text-right w-12 px-2">{{ player_stats.strike_outs }}</td>
+              <td class="text-right w-12 px-2">{{ player_stats.left_on_base }}</td>
+            </tr>
+            {% endfor %}{% endfor %}
+          </table>
+
+          {% let batting_lists = team.box_batting_lists() %}
+          <!-- prettier-ignore -->
+          {% if !batting_lists.is_empty() %}
+          <div class="my-4">
+            <p class="text-lg font-bold">Batting</p>
+            {% for (abbr, title, list) in batting_lists %}
+            <p><abbr class="font-bold" title="{{ title }}">{{ abbr }}</abbr>: {{ list }}.</p>
+            {% endfor %}
+          </div>
+          {% endif %}
+          <!-- prettier-ignore -->
+
+          {% let baserunning_lists = team.box_baserunning_lists() %}
+          <!-- prettier-ignore -->
+          {% if !baserunning_lists.is_empty() %}
+          <div class="my-4">
+            <p class="text-lg font-bold">Baserunning</p>
+            {% for (abbr, title, list) in baserunning_lists %}
+            <p><abbr class="font-bold" title="{{ title }}">{{ abbr }}</abbr>: {{ list }}.</p>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
     </div>
   </body>
 </html>

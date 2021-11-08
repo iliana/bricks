@@ -1,5 +1,8 @@
+use derive_more::{Add, Sum};
+use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
+use std::iter::{Chain, Once};
 use uuid::Uuid;
 
 #[derive(Debug, Default)]
@@ -9,8 +12,17 @@ pub(crate) struct AwayHome<T> {
 }
 
 impl<T> AwayHome<T> {
-    pub(crate) fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
+    pub(crate) fn teams_mut(&mut self) -> impl Iterator<Item = &mut T> {
         [&mut self.away, &mut self.home].into_iter()
+    }
+}
+
+impl<'a, T> IntoIterator for &'a AwayHome<T> {
+    type Item = &'a T;
+    type IntoIter = Chain<Once<&'a T>, Once<&'a T>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        std::iter::once(&self.away).chain(std::iter::once(&self.home))
     }
 }
 
@@ -22,15 +34,139 @@ pub(crate) struct GameStats {
     pub(crate) shorthand: String,
     pub(crate) emoji: String,
     pub(crate) player_names: HashMap<Uuid, String>,
+    pub(crate) player_box_names: HashMap<Uuid, String>,
     pub(crate) lineup: Vec<Vec<Uuid>>,
     pub(crate) pitchers: Vec<Uuid>,
 
-    pub(crate) stats: HashMap<Uuid, Stats>,
-    pub(crate) inning_run_totals: HashMap<u16, u16>,
+    pub(crate) stats: IndexMap<Uuid, Stats>,
+    pub(crate) totals: Stats,
+    pub(crate) inning_run_totals: BTreeMap<u16, u16>,
     pub(crate) left_on_base: usize,
 }
 
-#[derive(Debug, Default, Deserialize, Serialize)]
+type BoxList = Vec<(&'static str, &'static str, String)>;
+
+impl GameStats {
+    pub(crate) fn box_names(&mut self) {
+        let mut last_names: HashMap<&str, usize> = HashMap::new();
+        for name in self.player_names.values() {
+            *last_names.entry(name).or_default() += 1;
+        }
+
+        self.player_box_names = self
+            .player_names
+            .iter()
+            .map(|(id, name)| {
+                let mut iter = name.rsplitn(2, ' ');
+                let last = iter.next().unwrap();
+                let rem = iter.next();
+
+                let box_name = if last_names.get(last).copied().unwrap_or_default() > 1 {
+                    if let Some(rem) = rem {
+                        let first = rem
+                            .split(' ')
+                            .filter_map(|s| s.chars().next().map(String::from))
+                            .collect::<Vec<_>>();
+                        format!("{}, {}", last, first.join(" "))
+                    } else {
+                        last.into()
+                    }
+                } else {
+                    last.into()
+                };
+
+                (*id, box_name)
+            })
+            .collect();
+    }
+
+    pub(crate) fn runs(&self) -> u16 {
+        self.inning_run_totals.values().sum()
+    }
+
+    pub(crate) fn box_name(&self, id: &Uuid) -> &str {
+        self.player_box_names
+            .get(id)
+            .map(String::as_str)
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn player_stats(&self, id: &Uuid) -> Stats {
+        self.stats.get(id).copied().unwrap_or_default()
+    }
+
+    fn box_list<F>(&self, f: F, force_number: bool) -> String
+    where
+        F: Fn(&Stats) -> u16,
+    {
+        let mut v = Vec::new();
+        for (id, stats) in &self.stats {
+            let stat = f(stats);
+            if stat > 1 || (force_number && stat > 0) {
+                v.push(format!("{} {}", self.box_name(id), stat));
+            } else if stat > 0 {
+                v.push(self.box_name(id).into());
+            }
+        }
+        v.join(", ")
+    }
+
+    pub(crate) fn box_batting_lists(&self) -> BoxList {
+        let mut lists = vec![
+            ("2B", "Doubles", self.box_list(|s| s.doubles, false)),
+            ("3B", "Triples", self.box_list(|s| s.triples, false)),
+            ("HR", "Home Runs", self.box_list(|s| s.home_runs, false)),
+            (
+                "TB",
+                "Total Bases",
+                self.box_list(|s| s.total_bases(), true),
+            ),
+            (
+                "GDP",
+                "Double Plays Grounded Into",
+                self.box_list(|s| s.double_plays_grounded_into, false),
+            ),
+        ];
+        lists.retain(|(_, _, s)| !s.is_empty());
+        if self.totals.at_bats_with_risp > 0 {
+            lists.push((
+                "Team RISP",
+                "Team Hits with Runners in Scoring Position",
+                format!(
+                    "{}-for-{}",
+                    self.totals.hits_with_risp, self.totals.at_bats_with_risp
+                ),
+            ));
+        }
+        if self.left_on_base > 0 {
+            lists.push((
+                "Team LOB",
+                "Team Runners Left on Bases",
+                self.left_on_base.to_string(),
+            ));
+        }
+        lists
+    }
+
+    pub(crate) fn box_baserunning_lists(&self) -> BoxList {
+        let mut lists = vec![
+            (
+                "SB",
+                "Stolen Bases",
+                self.box_list(|s| s.stolen_bases, false),
+            ),
+            (
+                "CS",
+                "Caught Stealing",
+                self.box_list(|s| s.caught_stealing, false),
+            ),
+        ];
+        lists.retain(|(_, _, s)| !s.is_empty());
+        lists
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, Deserialize, Serialize, Add, Sum)]
 pub(crate) struct Stats {
     // Batting stats
     pub(crate) plate_appearances: u16,
@@ -42,8 +178,9 @@ pub(crate) struct Stats {
     pub(crate) triples: u16,
     pub(crate) home_runs: u16,
     pub(crate) runs: u16,
-    pub(crate) runners_batted_in: u16,
+    pub(crate) runs_batted_in: u16,
     pub(crate) stolen_bases: u16,
+    pub(crate) caught_stealing: u16,
     pub(crate) strike_outs: u16,
     pub(crate) double_plays_grounded_into: u16,
     pub(crate) walks: u16,
@@ -58,6 +195,8 @@ pub(crate) struct Stats {
     pub(crate) walks_issued: u16,
     pub(crate) strikes_pitched: u16,
     pub(crate) balls_pitched: u16,
+    pub(crate) flyouts_pitched: u16,
+    pub(crate) groundouts_pitched: u16,
 }
 
 impl Stats {
@@ -69,7 +208,9 @@ impl Stats {
         self.singles + 2 * self.doubles + 3 * self.triples + 4 * self.home_runs
     }
 
+    /*
     pub(crate) fn total_pitches(&self) -> u16 {
         self.strikes_pitched + self.balls_pitched
     }
+    */
 }

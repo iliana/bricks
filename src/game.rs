@@ -14,6 +14,7 @@ pub(crate) struct State {
     top_of_inning: bool,
     half_inning_outs: u16,
     at_bat: Option<Uuid>,
+    rbi_credit: Option<Uuid>,
     // key: runner id, value: pitcher to be charged with the earned run
     on_base: HashMap<Uuid, Uuid>,
 }
@@ -24,17 +25,23 @@ impl State {
             stats: AwayHome::default(),
             game_started: false,
             game_finished: false,
-            inning: 0,
+            inning: 1,
             top_of_inning: true,
             half_inning_outs: 0,
             at_bat: None,
+            rbi_credit: None,
             on_base: HashMap::new(),
         }
     }
 
     pub(crate) fn finish(self) -> Result<AwayHome<GameStats>> {
         ensure!(self.game_finished, "game incomplete");
-        Ok(self.stats)
+        let mut stats = self.stats;
+        for team in stats.teams_mut() {
+            team.totals = team.stats.values().copied().sum();
+            team.box_names();
+        }
+        Ok(stats)
     }
 
     pub(crate) async fn push(&mut self, event: &GameEvent) -> Result<()> {
@@ -80,6 +87,7 @@ impl State {
                 // Stolen base
                 checkdesc!(desc.contains("steals"));
                 ensure!(event.player_tags.len() == 1, "invalid player tag count");
+                self.rbi_credit = None;
                 self.record_runner_event(event.player_tags[0], |s| &mut s.stolen_bases)?;
             }
             5 => {
@@ -88,6 +96,7 @@ impl State {
                 self.on_base.insert(self.batter()?, self.pitcher()?);
                 self.record_batter_event(|s| &mut s.plate_appearances)?;
                 self.record_batter_event(|s| &mut s.walks)?;
+                self.rbi_credit = self.at_bat;
                 self.at_bat = None;
                 self.record_pitcher_event(|s| &mut s.walks_issued)?;
             }
@@ -182,7 +191,7 @@ impl State {
         self.stats.away.team = event.team_tags[0];
         self.stats.home.team = event.team_tags[1];
 
-        for team in self.stats.iter_mut() {
+        for team in self.stats.teams_mut() {
             let data = team::load_team(&team.team.to_string(), event.created).await?;
             team.name = data.full_name;
             team.nickname = data.nickname;
@@ -208,6 +217,8 @@ impl State {
             self.game_started = true;
         }
 
+        let inning = self.inning;
+        self.offense_mut().inning_run_totals.insert(inning, 0);
         self.half_inning_outs = 0;
         self.on_base.clear();
 
@@ -237,6 +248,7 @@ impl State {
         // double play
         if event.description.ends_with("hit into a double play!") {
             self.half_inning_outs += 1;
+            self.record_batter_event(|s| &mut s.double_plays_grounded_into)?;
             self.record_pitcher_event(|s| &mut s.outs_recorded)?;
             if self.on_base.len() == 1 {
                 self.on_base.clear();
@@ -256,6 +268,12 @@ impl State {
                     .context("unable to determine runner out in double play")?;
                 self.on_base.remove(&out);
             }
+        }
+
+        if event.description.contains("hit a flyout to") {
+            self.record_pitcher_event(|s| &mut s.flyouts_pitched)?;
+        } else if event.description.contains("hit a ground out to") {
+            self.record_pitcher_event(|s| &mut s.groundouts_pitched)?;
         }
 
         self.batter_out(event)
@@ -282,6 +300,9 @@ impl State {
             .entry(inning)
             .or_default() += 1;
         self.record_runner_event(runner, |s| &mut s.runs)?;
+        if let Some(rbi_credit) = self.rbi_credit {
+            self.record_runner_event(rbi_credit, |s| &mut s.runs_batted_in)?;
+        }
         self.defense_mut()
             .stats
             .entry(pitcher)
@@ -314,6 +335,7 @@ impl State {
                     self.record_batter_event(|s| &mut s.at_bats_with_risp)?;
                     self.record_batter_event(|s| &mut s.hits_with_risp)?;
                 }
+                self.rbi_credit = self.at_bat;
                 self.at_bat = None;
                 self.record_pitcher_event(|s| &mut s.strikes_pitched)?;
                 self.record_pitcher_event(|s| &mut s.hits_allowed)?;

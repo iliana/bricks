@@ -1,4 +1,5 @@
 /.env
 /db.sqlite
 /node_modules
+/out
 /target

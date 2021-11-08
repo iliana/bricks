@@ -2,9 +2,6 @@ module.exports = {
   plugins: {
     tailwindcss: {},
     autoprefixer: {},
-    "@fullhuman/postcss-purgecss": {
-      content: ["./templates/*.html"],
-    },
-    cssnano: {},
+    ...(process.env.NODE_ENV === "production" ? { cssnano: {} } : {}),
   },
 };
