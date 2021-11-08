@@ -34,7 +34,18 @@ async fn main() -> Result<()> {
     migrations::runner().run(&mut *DB.lock().await)?;
 
     let feed = feed::load_game_feed("3b63f242-8590-4bf0-a2d7-884edb0b2e90").await?;
-    println!("{:#?}", game::process_game(&feed).await?);
+    let mut state = game::State::new();
+    for event in &feed {
+        if let Err(err) = state.push(event).await {
+            println!("{:#?}", state);
+            return Err(err);
+        }
+        if state.inning == 1 {
+            break;
+        }
+    }
+
+    println!("{:#?}", state);
 
     Ok(())
 }

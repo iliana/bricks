@@ -2,6 +2,7 @@ use crate::{cache, CLIENT, SACHET_BASE};
 use anyhow::{ensure, Result};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
+use uuid::Uuid;
 
 const CACHE_KIND: &str = "Sachet";
 
@@ -11,15 +12,17 @@ pub(crate) struct GameEvent {
     // must be first to verify ordering
     pub(crate) metadata: GameEventMetadata,
 
-    pub(crate) player_tags: Vec<String>,
-    pub(crate) team_tags: Vec<String>,
+    pub(crate) id: Uuid,
+    pub(crate) player_tags: Vec<Uuid>,
+    pub(crate) team_tags: Vec<Uuid>,
     pub(crate) created: DateTime<Utc>,
     #[serde(rename = "type")]
     pub(crate) ty: u16,
     pub(crate) description: String,
 
-    pub(crate) away_pitcher: Option<String>,
-    pub(crate) home_pitcher: Option<String>,
+    pub(crate) away_pitcher: Option<Uuid>,
+    pub(crate) home_pitcher: Option<Uuid>,
+    pub(crate) base_runners: Option<Vec<Uuid>>,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
@@ -28,9 +31,10 @@ pub(crate) struct GameEventMetadata {
     // play and sub_play must be first to verify ordering
     pub(crate) play: u16,
     pub(crate) sub_play: u16,
+    pub(crate) sibling_ids: Vec<Uuid>,
 
-    pub(crate) a_player_id: Option<String>,
-    pub(crate) b_player_id: Option<String>,
+    pub(crate) a_player_id: Option<Uuid>,
+    pub(crate) b_player_id: Option<Uuid>,
 }
 
 pub(crate) async fn load_game_feed(game_id: &str) -> Result<Vec<GameEvent>> {

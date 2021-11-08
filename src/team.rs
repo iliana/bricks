@@ -5,13 +5,14 @@ use chrono::{DateTime, SecondsFormat, Utc};
 use serde::Deserialize;
 use serde_json::value::RawValue;
 use std::ops::Range;
+use uuid::Uuid;
 
 const CACHE_KIND: &str = "ChroniclerTeam";
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct Team {
-    pub(crate) lineup: Vec<String>,
+    pub(crate) lineup: Vec<Uuid>,
 }
 
 pub(crate) async fn load_team(team_id: &str, at: DateTime<Utc>) -> Result<Team> {
