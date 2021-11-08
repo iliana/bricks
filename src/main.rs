@@ -6,6 +6,7 @@ mod stats;
 mod team;
 
 use anyhow::Result;
+use askama::Template;
 use reqwest::Client;
 use rusqlite::Connection;
 use std::sync::Arc;
@@ -27,6 +28,10 @@ lazy_static::lazy_static! {
 }
 
 refinery::embed_migrations!("./migrations");
+
+#[derive(Template)]
+#[template(path = "game.html")]
+struct GamePage {}
 
 #[tokio::main]
 async fn main() -> Result<()> {

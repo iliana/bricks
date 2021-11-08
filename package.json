@@ -1,0 +1,11 @@
+{
+  "devDependencies": {
+    "@fullhuman/postcss-purgecss": "^4.0.3",
+    "autoprefixer": "^10.4.0",
+    "cssnano": "^5.0.10",
+    "postcss": "^8.3.11",
+    "postcss-cli": "^9.0.2",
+    "prettier": "^2.4.1",
+    "tailwindcss": "^2.2.19"
+  }
+}
