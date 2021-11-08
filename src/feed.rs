@@ -45,8 +45,8 @@ impl GameEvent {
     }
 }
 
-pub(crate) async fn load_game_feed(game_id: &str) -> Result<Vec<GameEvent>> {
-    let (raw_value, from_cache) = match cache::load(CACHE_KIND, game_id, None).await? {
+pub(crate) async fn load_game_feed(game_id: Uuid) -> Result<Vec<GameEvent>> {
+    let (raw_value, from_cache) = match cache::load(CACHE_KIND, &game_id.to_string(), None).await? {
         None => (
             CLIENT
                 .get(format!("{}/packets?id={}", SACHET_BASE, game_id))
@@ -67,7 +67,7 @@ pub(crate) async fn load_game_feed(game_id: &str) -> Result<Vec<GameEvent>> {
     );
 
     if !from_cache {
-        cache::store(CACHE_KIND, game_id, &raw_value, None).await?;
+        cache::store(CACHE_KIND, &game_id.to_string(), &raw_value, None).await?;
     }
 
     Ok(value)

@@ -90,16 +90,7 @@ impl State {
                 self.rbi_credit = None;
                 self.record_runner_event(event.player_tags[0], |s| &mut s.stolen_bases)?;
             }
-            5 => {
-                // Walk
-                checkdesc!(desc.ends_with("draws a walk."));
-                self.on_base.insert(self.batter()?, self.pitcher()?);
-                self.record_batter_event(|s| &mut s.plate_appearances)?;
-                self.record_batter_event(|s| &mut s.walks)?;
-                self.rbi_credit = self.at_bat;
-                self.at_bat = None;
-                self.record_pitcher_event(|s| &mut s.walks_issued)?;
-            }
+            5 => checkdesc!(self.walk(event)?),
             6 => {
                 // Strikeout
                 checkdesc!(desc.contains("strikes out"));
@@ -292,7 +283,13 @@ impl State {
         self.record_pitcher_event(|s| &mut s.outs_recorded)
     }
 
-    fn credit_run(&mut self, runner: Uuid, pitcher: Uuid) -> Result<()> {
+    fn credit_run(&mut self, runner: Uuid) -> Result<()> {
+        let pitcher = self.on_base.remove(&runner).with_context(|| {
+            format!(
+                "cannot determine pitcher to charge with earned run by {}",
+                runner
+            )
+        })?;
         let inning = self.inning;
         *self
             .offense_mut()
@@ -311,14 +308,32 @@ impl State {
         Ok(())
     }
 
+    fn walk(&mut self, event: &GameEvent) -> Result<bool> {
+        if event.description.ends_with("draws a walk.") {
+            self.on_base.insert(self.batter()?, self.pitcher()?);
+            self.record_batter_event(|s| &mut s.plate_appearances)?;
+            self.record_batter_event(|s| &mut s.walks)?;
+            self.rbi_credit = self.at_bat;
+            self.at_bat = None;
+            self.record_pitcher_event(|s| &mut s.walks_issued)?;
+            Ok(true)
+        } else if event.description.ends_with("scores!") {
+            ensure!(event.player_tags.len() == 2, "invalid player tag count");
+            self.credit_run(event.player_tags[1])?;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
     fn home_run(&mut self, event: &GameEvent) -> Result<bool> {
         if !(self.hit(event)?) {
             return Ok(false);
         }
 
         let was_on_base = self.on_base.clone();
-        for (runner, pitcher) in was_on_base {
-            self.credit_run(runner, pitcher)?;
+        for runner in was_on_base.into_keys() {
+            self.credit_run(runner)?;
         }
         self.on_base.clear();
 
@@ -345,7 +360,7 @@ impl State {
 
         let desc = &event.description;
 
-        if event.ty == 9 && desc.ends_with("home run!") {
+        if event.ty == 9 && (desc.ends_with("home run!") || desc.ends_with("hits a grand slam!")) {
             self.record_batter_event(|s| &mut s.home_runs)?;
             self.record_pitcher_event(|s| &mut s.home_runs_allowed)?;
             common!()
@@ -360,16 +375,7 @@ impl State {
             common!()
         } else if desc.ends_with("scores!") {
             ensure!(event.player_tags.len() == 1, "invalid player tag count");
-            let pitcher = self
-                .on_base
-                .remove(&event.player_tags[0])
-                .with_context(|| {
-                    format!(
-                        "cannot determine pitcher to charge with earned run by {}",
-                        event.player_tags[0]
-                    )
-                })?;
-            self.credit_run(event.player_tags[0], pitcher)?;
+            self.credit_run(event.player_tags[0])?;
             Ok(true)
         } else {
             Ok(false)
