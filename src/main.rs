@@ -3,19 +3,17 @@ mod chronicler;
 mod feed;
 mod filters;
 mod game;
+mod render;
 mod stats;
 mod team;
 
-use crate::stats::{AwayHome, GameStats};
 use anyhow::Result;
-use askama::Template;
 use reqwest::Client;
 use rusqlite::Connection;
 use std::ffi::OsStr;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use uuid::Uuid;
 
 const CHRONICLER_BASE: &str = "https://api.sibr.dev/chronicler";
 const SACHET_BASE: &str = "https://api.sibr.dev/eventually/sachet";
@@ -38,37 +36,12 @@ lazy_static::lazy_static! {
 
 refinery::embed_migrations!("./migrations");
 
-#[derive(Template)]
-#[template(path = "game.html")]
-struct GamePage {
-    stats: AwayHome<GameStats>,
-}
-
-async fn render_game(id: Uuid) -> Result<()> {
-    let feed = feed::load_game_feed(id).await?;
-    let mut state = game::State::new();
-    for event in &feed {
-        state.push(event).await?;
-    }
-    tokio::fs::create_dir_all(OUT_DIR.join("game")).await?;
-    tokio::fs::write(
-        OUT_DIR.join("game").join(format!("{}.html", id)),
-        GamePage {
-            stats: state.finish()?,
-        }
-        .render()?,
-    )
-    .await?;
-
-    Ok(())
-}
-
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenv::dotenv().ok();
     migrations::runner().run(&mut *DB.lock().await)?;
 
-    render_game("e03c1bb6-41f1-4331-aa3b-7bedb114221b".parse()?).await?;
+    render::render_game("e03c1bb6-41f1-4331-aa3b-7bedb114221b".parse()?).await?;
 
     Ok(())
 }
