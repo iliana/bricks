@@ -52,7 +52,7 @@
       </tr>
       {% for row in team.lineup %}{% for player in row %}
       <tr class="hover:bg-yellow-100 dark:hover:bg-yellow-900">
-        <td class="w-max pl-2 pr-6">{{ team.box_name(player) }}</td>
+        <td class="w-max pl-2 pr-6">{{ team.full_name(player) }}</td>
         {% let player_stats = team.player_stats(player) %}
         <td class="text-right w-12 px-2">{{ player_stats.at_bats }}</td>
         <td class="text-right w-12 px-2">{{ player_stats.runs }}</td>
@@ -106,7 +106,7 @@
       </tr>
       {% for player in team.pitchers %}
       <tr class="hover:bg-yellow-100 dark:hover:bg-yellow-900">
-        <td class="w-max pl-2 pr-6">{{ team.box_name(player) }}</td>
+        <td class="w-max pl-2 pr-6">{{ team.full_name(player) }}</td>
         {% let player_stats = team.player_stats(player) %}
         <td class="text-right w-12 px-2">{{ player_stats.innings_pitched() }}</td>
         <td class="text-right w-12 px-2">{{ player_stats.hits_allowed }}</td>

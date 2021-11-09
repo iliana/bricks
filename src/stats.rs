@@ -133,6 +133,13 @@ impl GameStats {
         self.inning_run_totals.values().sum()
     }
 
+    pub(crate) fn full_name(&self, id: &Uuid) -> &str {
+        self.player_names
+            .get(id)
+            .map(String::as_str)
+            .unwrap_or_default()
+    }
+
     pub(crate) fn box_name(&self, id: &Uuid) -> &str {
         self.player_box_names
             .get(id)
