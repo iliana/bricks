@@ -193,6 +193,7 @@ impl State {
                 // only record one extra strike; the next event catches the other
                 self.record_pitcher_event(|s| &mut s.strikes_pitched)?;
             }
+            262 => {} // electricity zaps a strike away
             _ => bail!("unexpected event type"),
         }
 
