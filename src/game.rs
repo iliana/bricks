@@ -41,6 +41,10 @@ impl State {
         let mut stats = self.stats;
         for team in stats.teams_mut() {
             team.totals = team.stats.values().copied().sum();
+            ensure!(
+                team.totals.outs_recorded % 3 == 0,
+                "fractional total innings pitched"
+            );
             team.box_names();
         }
         Ok(stats)
