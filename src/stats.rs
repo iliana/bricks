@@ -23,7 +23,7 @@ where
             } else if stat == "1" && !force_number {
                 v.push(game_stats.box_name(id).into());
             } else {
-                v.push(format!("{} {}", game_stats.box_name(id), stat));
+                v.push(format!("{}\u{a0}{}", game_stats.box_name(id), stat));
             }
         }
     }
