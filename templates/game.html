@@ -27,6 +27,9 @@
     {% for (_, runs) in team.inning_run_totals %}
     <td class="text-center px-2">{{ runs }}</td>
     {% endfor %}
+    {% if team.inning_run_totals.len() < stats.away.inning_run_totals.len() %}
+    <td class="text-center px-2">×</td>
+    {% endif %}
     <td class="text-center font-bold px-2">{{ team.runs() }}</td>
     <td class="text-center font-bold px-2">{{ team.totals.hits() }}</td>
   </tr>
