@@ -2,8 +2,8 @@ use crate::feed::GameEvent;
 use crate::stats::{AwayHome, GameStats, Stats};
 use crate::team;
 use anyhow::{bail, ensure, Context, Result};
+use indexmap::IndexMap;
 use serde::Serialize;
-use std::collections::HashMap;
 use uuid::Uuid;
 
 #[derive(Debug, Serialize)]
@@ -18,7 +18,7 @@ pub(crate) struct State {
     last_fielded_out: Option<(u16, Uuid)>,
     rbi_credit: Option<Uuid>,
     // key: runner id, value: pitcher to be charged with the earned run
-    on_base: HashMap<Uuid, Uuid>,
+    on_base: IndexMap<Uuid, Uuid>,
 }
 
 impl State {
@@ -33,7 +33,7 @@ impl State {
             at_bat: None,
             last_fielded_out: None,
             rbi_credit: None,
-            on_base: HashMap::new(),
+            on_base: IndexMap::new(),
         }
     }
 
@@ -292,6 +292,7 @@ impl State {
         } else if event.description.ends_with("hit into a double play!") {
             // double play
             self.half_inning_outs += 1;
+            self.rbi_credit = None;
             self.record_batter_event(|s| &mut s.double_plays_grounded_into)?;
             self.record_pitcher_event(|s| &mut s.groundouts_pitched)?;
             self.record_pitcher_event(|s| &mut s.outs_recorded)?;
@@ -308,6 +309,10 @@ impl State {
                 let out = self
                     .on_base
                     .keys()
+                    // if more than one batter is removed, it's a scoring play; the other half of
+                    // the double play will be on an earlier base and thus will have been added to
+                    // this map _later_. reverse the iterator to find the latest one.
+                    .rev()
                     .find(|runner| !base_runners.contains(runner))
                     .copied()
                     .context("unable to determine runner out in double play")?;
@@ -390,7 +395,7 @@ impl State {
         }
 
         let was_on_base = self.on_base.clone();
-        for runner in was_on_base.into_keys() {
+        for (runner, _) in was_on_base {
             self.credit_run(runner)?;
         }
         self.on_base.clear();

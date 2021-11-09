@@ -46,6 +46,7 @@ pub(crate) async fn render_game(id: Uuid) -> Result<bool> {
                 old = new;
             }
             Err(err) => {
+                eprintln!("{} {}", id, err);
                 debug.log.push((event.description, format!("{:?}", err)));
                 failed = true;
                 break;

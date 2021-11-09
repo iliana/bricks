@@ -27,6 +27,7 @@
     {% for (_, runs) in team.inning_run_totals %}
     <td class="text-center px-2">{{ runs }}</td>
     {% endfor %}
+    <!-- prettier-ignore -->
     {% if team.inning_run_totals.len() < stats.away.inning_run_totals.len() %}
     <td class="text-center px-2">×</td>
     {% endif %}
@@ -99,7 +100,7 @@
         <th class="text-left w-max pl-2 pr-6">Pitchers – <abbr title="{{ team.name }}">{{ team.shorthand }}</abbr></th>
         <th class="w-12 px-2 text-right"><abbr title="Innings Pitched">IP</abbr></th>
         <th class="w-12 px-2 text-right"><abbr title="Hits Allowed">H</abbr></th>
-        <th class="w-12 px-2 text-right"><abbr title="Earned Runs Allowed">ER</abbr></th>
+        <th class="w-12 px-2 text-right"><abbr title="Runs Allowed">R</abbr></th>
         <th class="w-12 px-2 text-right"><abbr title="Bases on Balls (Walks)">BB</abbr></th>
         <th class="w-12 px-2 text-right"><abbr title="Strikeouts">SO</abbr></th>
         <th class="w-12 px-2 text-right"><abbr title="Home Runs Allowed">HR</abbr></th>

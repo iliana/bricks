@@ -44,13 +44,13 @@ async fn main() -> Result<()> {
     migrations::runner().run(&mut *DB.lock().await)?;
 
     let mut errored = 0;
-    for game in schedule::load_schedule("gamma8", 1, 0, 0).await? {
+    for game in schedule::load_schedule("gamma8", 1, 0, 8).await? {
         if !render::render_game(game).await? {
             errored += 1;
         }
     }
 
-    println!("errored: {}", errored);
+    eprintln!("errored: {}", errored);
 
     Ok(())
 }
