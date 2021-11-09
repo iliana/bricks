@@ -260,6 +260,7 @@ impl State {
             8 => stats.sacrifice_hits += 1,
             _ => unreachable!(),
         }
+        stats.runs_batted_in += 1;
         stats.at_bats -= 1;
 
         Ok(())
