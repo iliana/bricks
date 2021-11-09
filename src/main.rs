@@ -4,6 +4,7 @@ mod feed;
 mod filters;
 mod game;
 mod render;
+mod schedule;
 mod stats;
 mod team;
 
@@ -15,6 +16,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+const API_BASE: &str = "https://api.blaseball.com";
 const CHRONICLER_BASE: &str = "https://api.sibr.dev/chronicler";
 const SACHET_BASE: &str = "https://api.sibr.dev/eventually/sachet";
 
@@ -41,7 +43,9 @@ async fn main() -> Result<()> {
     dotenv::dotenv().ok();
     migrations::runner().run(&mut *DB.lock().await)?;
 
-    render::render_game("e03c1bb6-41f1-4331-aa3b-7bedb114221b".parse()?).await?;
+    for game in schedule::load_schedule("gamma8", 1, 0, 0).await? {
+        render::render_game(game).await?;
+    }
 
     Ok(())
 }

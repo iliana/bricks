@@ -24,7 +24,7 @@ struct GameDebugPage {
     log: Vec<(String, String)>,
 }
 
-pub(crate) async fn render_game(id: Uuid) -> Result<()> {
+pub(crate) async fn render_game(id: Uuid) -> Result<bool> {
     let feed = crate::feed::load_game_feed(id).await?;
     let mut state = crate::game::State::new();
     let mut old = Value::default();
@@ -53,19 +53,21 @@ pub(crate) async fn render_game(id: Uuid) -> Result<()> {
         }
     }
     tokio::fs::create_dir_all(OUT_DIR.join("game")).await?;
-    match state.finish() {
-        Ok(stats) => {
-            tokio::fs::write(
-                OUT_DIR.join("game").join(format!("{}.html", id)),
-                GamePage { stats }.render()?,
-            )
-            .await?;
-        }
-        Err(err) => {
-            debug
-                .log
-                .push(("[end of feed]".into(), format!("{:?}", err)));
-            failed = true;
+    if !failed {
+        match state.finish() {
+            Ok(stats) => {
+                tokio::fs::write(
+                    OUT_DIR.join("game").join(format!("{}.html", id)),
+                    GamePage { stats }.render()?,
+                )
+                .await?;
+            }
+            Err(err) => {
+                debug
+                    .log
+                    .push(("[end of feed]".into(), format!("{:?}", err)));
+                failed = true;
+            }
         }
     }
     if failed {
@@ -82,5 +84,5 @@ pub(crate) async fn render_game(id: Uuid) -> Result<()> {
     )
     .await?;
 
-    Ok(())
+    Ok(failed)
 }
