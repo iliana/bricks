@@ -52,7 +52,7 @@ async fn render_game(id: Uuid) -> Result<()> {
     }
     tokio::fs::create_dir_all(OUT_DIR.join("game")).await?;
     tokio::fs::write(
-        OUT_DIR.join("game").join(id.to_string()),
+        OUT_DIR.join("game").join(format!("{}.html", id)),
         GamePage {
             stats: state.finish()?,
         }
@@ -68,7 +68,7 @@ async fn main() -> Result<()> {
     dotenv::dotenv().ok();
     migrations::runner().run(&mut *DB.lock().await)?;
 
-    render_game("e03c1bb6-41f1-4331-aa3b-7bedb114221b".parse()?).await?;
+    render_game("cf71a46c-d7f3-4ec3-80ed-2888bac0a22e".parse()?).await?;
 
     Ok(())
 }

@@ -96,6 +96,48 @@
         </div>
         {% endfor %}
       </div>
+
+      <div class="flex gap-x-16 justify-center">
+        {% for team in stats %}
+        <div class="w-1/2">
+          <table class="w-full leading-loose -mx-2">
+            <tr class="text-sm">
+              <th class="text-left w-max pl-2 pr-6">
+                Pitchers – <abbr title="{{ team.name }}">{{ team.shorthand }}</abbr>
+              </th>
+              <th class="w-12 px-2 text-right"><abbr title="Innings Pitched">IP</abbr></th>
+              <th class="w-12 px-2 text-right"><abbr title="Hits Allowed">H</abbr></th>
+              <th class="w-12 px-2 text-right"><abbr title="Earned Runs Allowed">ER</abbr></th>
+              <th class="w-12 px-2 text-right"><abbr title="Bases on Balls (Walks)">BB</abbr></th>
+              <th class="w-12 px-2 text-right"><abbr title="Strikeouts">SO</abbr></th>
+              <th class="w-12 px-2 text-right"><abbr title="Home Runs Allowed">HR</abbr></th>
+            </tr>
+            {% for player in team.pitchers %}
+            <tr class="hover:bg-yellow-100 dark:hover:bg-yellow-900">
+              <td class="w-max pl-2 pr-6">{{ team.box_name(player) }}</td>
+              {% let player_stats = team.player_stats(player) %}
+              <td class="text-right w-12 px-2">{{ player_stats.innings_pitched() }}</td>
+              <td class="text-right w-12 px-2">{{ player_stats.hits_allowed }}</td>
+              <td class="text-right w-12 px-2">{{ player_stats.earned_runs }}</td>
+              <td class="text-right w-12 px-2">{{ player_stats.walks_issued }}</td>
+              <td class="text-right w-12 px-2">{{ player_stats.struck_outs }}</td>
+              <td class="text-right w-12 px-2">{{ player_stats.home_runs_allowed }}</td>
+            </tr>
+            {% endfor %}
+          </table>
+        </div>
+        {% endfor %}
+      </div>
+
+      <div class="my-4">
+        {% let pitching_lists = stats.box_pitching_lists() %}
+        <!-- prettier-ignore -->
+        {% if !pitching_lists.is_empty() %}
+        {% for (abbr, title, list) in pitching_lists %}
+        <p>{% if !abbr.is_empty() %}<abbr class="font-bold" title="{{ title }}">{{ abbr }}</abbr>{% else %}<span class="font-bold">{{ title }}</span>{% endif %}: {{ list }}.</p>
+        {% endfor %}
+        {% endif %}
+      </div>
     </div>
   </body>
 </html>

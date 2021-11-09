@@ -5,6 +5,31 @@ use std::collections::{BTreeMap, HashMap};
 use std::iter::{Chain, Once};
 use uuid::Uuid;
 
+fn box_list<'a, F, S>(
+    iter: impl IntoIterator<Item = &'a GameStats>,
+    f: F,
+    force_number: bool,
+) -> String
+where
+    F: Fn(&Stats) -> S,
+    S: ToString,
+{
+    let mut v = Vec::new();
+    for game_stats in iter {
+        for (id, stats) in &game_stats.stats {
+            let stat = f(stats).to_string();
+            if stat.is_empty() || stat == "0" {
+                // nothing
+            } else if stat == "1" && !force_number {
+                v.push(game_stats.box_name(id).into());
+            } else {
+                v.push(format!("{} {}", game_stats.box_name(id), stat));
+            }
+        }
+    }
+    v.join("; ")
+}
+
 #[derive(Debug, Default)]
 pub(crate) struct AwayHome<T> {
     pub(crate) away: T,
@@ -23,6 +48,30 @@ impl<'a, T> IntoIterator for &'a AwayHome<T> {
 
     fn into_iter(self) -> Self::IntoIter {
         std::iter::once(&self.away).chain(std::iter::once(&self.home))
+    }
+}
+
+impl AwayHome<GameStats> {
+    pub(crate) fn box_pitching_lists(&self) -> BoxList {
+        let mut lists = vec![
+            (
+                "",
+                "Pitches-strikes",
+                box_list([&self.away, &self.home], |s| s.pitches_strikes(), false),
+            ),
+            (
+                "",
+                "Groundouts-flyouts",
+                box_list([&self.away, &self.home], |s| s.groundouts_flyouts(), false),
+            ),
+            (
+                "",
+                "Batters faced",
+                box_list([&self.away, &self.home], |s| s.batters_faced, true),
+            ),
+        ];
+        lists.retain(|(_, _, s)| !s.is_empty());
+        lists
     }
 }
 
@@ -99,16 +148,7 @@ impl GameStats {
     where
         F: Fn(&Stats) -> u16,
     {
-        let mut v = Vec::new();
-        for (id, stats) in &self.stats {
-            let stat = f(stats);
-            if stat > 1 || (force_number && stat > 0) {
-                v.push(format!("{} {}", self.box_name(id), stat));
-            } else if stat > 0 {
-                v.push(self.box_name(id).into());
-            }
-        }
-        v.join("; ")
+        box_list([self], f, force_number)
     }
 
     pub(crate) fn box_batting_lists(&self) -> BoxList {
@@ -187,6 +227,7 @@ pub(crate) struct Stats {
     pub(crate) left_on_base: usize,
 
     // Pitching stats
+    pub(crate) batters_faced: u16,
     pub(crate) outs_recorded: u16,
     pub(crate) hits_allowed: u16,
     pub(crate) home_runs_allowed: u16,
@@ -208,9 +249,27 @@ impl Stats {
         self.singles + 2 * self.doubles + 3 * self.triples + 4 * self.home_runs
     }
 
-    /*
-    pub(crate) fn total_pitches(&self) -> u16 {
-        self.strikes_pitched + self.balls_pitched
+    pub(crate) fn innings_pitched(&self) -> String {
+        format!("{}.{}", self.outs_recorded / 3, self.outs_recorded % 3)
     }
-    */
+
+    pub(crate) fn pitches_strikes(&self) -> String {
+        if self.strikes_pitched + self.balls_pitched > 0 {
+            format!(
+                "{}-{}",
+                self.strikes_pitched + self.balls_pitched,
+                self.strikes_pitched
+            )
+        } else {
+            String::new()
+        }
+    }
+
+    pub(crate) fn groundouts_flyouts(&self) -> String {
+        if self.groundouts_pitched + self.flyouts_pitched > 0 {
+            format!("{}-{}", self.groundouts_pitched, self.flyouts_pitched)
+        } else {
+            String::new()
+        }
+    }
 }

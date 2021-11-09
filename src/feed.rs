@@ -20,8 +20,8 @@ pub(crate) struct GameEvent {
     pub(crate) ty: u16,
     pub(crate) description: String,
 
-    pub(crate) away_pitcher: Option<Uuid>,
-    pub(crate) home_pitcher: Option<Uuid>,
+    #[serde(flatten)]
+    pub(crate) pitcher_data: Option<PitcherData>,
     pub(crate) base_runners: Option<Vec<Uuid>>,
     pub(crate) bases_occupied: Option<Vec<u16>>,
 }
@@ -37,6 +37,15 @@ pub(crate) struct GameEventMetadata {
     pub(crate) a_player_id: Option<Uuid>,
     pub(crate) b_player_id: Option<Uuid>,
     pub(crate) winner: Option<Uuid>,
+}
+
+#[derive(Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct PitcherData {
+    pub(crate) away_pitcher: Uuid,
+    pub(crate) away_pitcher_name: String,
+    pub(crate) home_pitcher: Uuid,
+    pub(crate) home_pitcher_name: String,
 }
 
 impl GameEvent {

@@ -52,11 +52,17 @@ impl State {
 
     async fn push_inner(&mut self, event: &GameEvent) -> Result<()> {
         if self.stats.away.pitchers.is_empty() {
-            if let Some(away_pitcher) = event.away_pitcher {
-                if let Some(home_pitcher) = event.home_pitcher {
-                    self.stats.away.pitchers.push(away_pitcher);
-                    self.stats.home.pitchers.push(home_pitcher);
-                }
+            if let Some(pitchers) = &event.pitcher_data {
+                self.stats.away.pitchers.push(pitchers.away_pitcher);
+                self.stats
+                    .away
+                    .player_names
+                    .insert(pitchers.away_pitcher, pitchers.away_pitcher_name.to_owned());
+                self.stats.home.pitchers.push(pitchers.home_pitcher);
+                self.stats
+                    .home
+                    .player_names
+                    .insert(pitchers.home_pitcher, pitchers.home_pitcher_name.to_owned());
             }
         }
 
@@ -85,10 +91,19 @@ impl State {
             }
             4 => {
                 // Stolen base
-                checkdesc!(desc.contains("steals"));
+                checkdesc!(desc.contains("gets caught stealing") || desc.contains("steals"));
                 ensure!(event.player_tags.len() == 1, "invalid player tag count");
                 self.rbi_credit = None;
-                self.record_runner_event(event.player_tags[0], |s| &mut s.stolen_bases)?;
+                if desc.contains("gets caught stealing") {
+                    self.record_runner_event(event.player_tags[0], |s| &mut s.caught_stealing)?;
+                    self.half_inning_outs += 1;
+                    self.record_pitcher_event(|s| &mut s.outs_recorded)?;
+                    self.on_base
+                        .remove(&event.player_tags[0])
+                        .context("runner caught stealing wasn't on base?")?;
+                } else {
+                    self.record_runner_event(event.player_tags[0], |s| &mut s.stolen_bases)?;
+                }
             }
             5 => checkdesc!(self.walk(event)?),
             6 => {
@@ -279,6 +294,7 @@ impl State {
             self.record_batter_event(|s| &mut s.at_bats_with_risp)?;
         }
         self.at_bat = None;
+        self.record_pitcher_event(|s| &mut s.batters_faced)?;
         self.record_pitcher_event(|s| &mut s.strikes_pitched)?;
         self.record_pitcher_event(|s| &mut s.outs_recorded)
     }
@@ -315,6 +331,7 @@ impl State {
             self.record_batter_event(|s| &mut s.walks)?;
             self.rbi_credit = self.at_bat;
             self.at_bat = None;
+            self.record_pitcher_event(|s| &mut s.batters_faced)?;
             self.record_pitcher_event(|s| &mut s.walks_issued)?;
             Ok(true)
         } else if event.description.ends_with("scores!") {
@@ -352,6 +369,7 @@ impl State {
                 }
                 self.rbi_credit = self.at_bat;
                 self.at_bat = None;
+                self.record_pitcher_event(|s| &mut s.batters_faced)?;
                 self.record_pitcher_event(|s| &mut s.strikes_pitched)?;
                 self.record_pitcher_event(|s| &mut s.hits_allowed)?;
                 Ok(true)
