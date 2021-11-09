@@ -43,9 +43,14 @@ async fn main() -> Result<()> {
     dotenv::dotenv().ok();
     migrations::runner().run(&mut *DB.lock().await)?;
 
+    let mut errored = 0;
     for game in schedule::load_schedule("gamma8", 1, 0, 0).await? {
-        render::render_game(game).await?;
+        if !render::render_game(game).await? {
+            errored += 1;
+        }
     }
+
+    println!("errored: {}", errored);
 
     Ok(())
 }

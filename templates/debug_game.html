@@ -4,7 +4,8 @@
 {% block content %}
 <p class="my-4">
   <a href="https://www.blaseball.com/game/{{ id }}">Blaseball game feed</a> —
-  <a href="https://reblase.sibr.dev/game/{{ id }}">Reblase game log</a>
+  <a href="https://reblase.sibr.dev/game/{{ id }}">Reblase game log</a> —
+  <a href="https://api.sibr.dev/eventually/sachet/packets?id={{ id }}">Sachet JSON</a>
 </p>
 
 {% for (description, patch) in log %}

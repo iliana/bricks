@@ -84,5 +84,5 @@ pub(crate) async fn render_game(id: Uuid) -> Result<bool> {
     )
     .await?;
 
-    Ok(failed)
+    Ok(!failed)
 }

@@ -110,6 +110,9 @@ impl State {
                         .context("runner caught stealing wasn't on base?")?;
                 } else {
                     self.record_runner_event(event.player_tags[0], |s| &mut s.stolen_bases)?;
+                    if desc.ends_with("steals fourth base!") {
+                        self.credit_run(event.player_tags[0])?;
+                    }
                 }
             }
             5 => checkdesc!(self.walk(event)?),
@@ -122,7 +125,9 @@ impl State {
             }
             7 | 8 => {
                 // Flyout or ground out
-                if event.metadata.sub_play == 0 {
+                if desc.ends_with("reaches on fielder's choice.") {
+                    // nothing, we already handled this in the "out at" branch
+                } else {
                     checkdesc!(
                         desc.contains("hit a flyout to")
                             || desc.contains("hit a ground out to")
@@ -130,10 +135,6 @@ impl State {
                             || desc.ends_with("hit into a double play!")
                     );
                     self.fielded_out(event)?;
-                } else if event.metadata.sub_play == 1 {
-                    checkdesc!(desc.ends_with("reaches on fielder's choice."));
-                } else {
-                    checkdesc!(false);
                 }
             }
             9 => checkdesc!(self.home_run(event)?),
@@ -173,7 +174,7 @@ impl State {
             }
             15 => {
                 // Foul Ball
-                checkdesc!(desc.starts_with("Foul Ball."));
+                checkdesc!(desc.starts_with("Foul Ball.") || desc.starts_with("Foul Balls."));
                 self.record_pitcher_event(|s| &mut s.strikes_pitched)?;
             }
             20 => {} // Shame!
@@ -186,6 +187,12 @@ impl State {
             214 => {} // team collected a Win
             216 => {} // game over
             223 => {} // weather is happening
+            261 => {
+                // Double strike
+                checkdesc!(desc.ends_with("fires a Double Strike!"));
+                // only record one extra strike; the next event catches the other
+                self.record_pitcher_event(|s| &mut s.strikes_pitched)?;
+            }
             _ => bail!("unexpected event type"),
         }
 
@@ -270,10 +277,6 @@ impl State {
     fn fielded_out(&mut self, event: &GameEvent) -> Result<()> {
         if let Some((out, _)) = event.description.rsplit_once(" out at ") {
             // fielder's choice
-            ensure!(
-                event.metadata.sibling_ids.len() == 2,
-                "incorrect number of events for fielder's choice"
-            );
             self.record_pitcher_event(|s| &mut s.groundouts_pitched)?;
             let out = *self
                 .offense()
