@@ -176,15 +176,19 @@ impl State {
             _ => bail!("unexpected event type"),
         }
 
-        if let Some(base_runners) = &event.base_runners {
-            if usize::from(event.metadata.sub_play) == event.metadata.sibling_ids.len() - 1
-                && self.half_inning_outs < 3
-            {
+        if usize::from(event.metadata.sub_play) == event.metadata.sibling_ids.len() - 1
+            && self.half_inning_outs < 3
+        {
+            if let Some(base_runners) = &event.base_runners {
+                let mut known_runners = base_runners.clone();
+                known_runners.sort_unstable();
+                let mut derived_runners = self.on_base.keys().copied().collect::<Vec<_>>();
+                derived_runners.sort_unstable();
                 ensure!(
-                    self.on_base.len() == base_runners.len(),
-                    "baserunner count mismatch, {} != {}",
-                    self.on_base.len(),
-                    base_runners.len()
+                    known_runners == derived_runners,
+                    "baserunner mismatch: {:?} != {:?}",
+                    known_runners,
+                    derived_runners
                 );
             }
         }
