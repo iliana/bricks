@@ -68,7 +68,7 @@ async fn main() -> Result<()> {
     dotenv::dotenv().ok();
     migrations::runner().run(&mut *DB.lock().await)?;
 
-    render_game("cf71a46c-d7f3-4ec3-80ed-2888bac0a22e".parse()?).await?;
+    render_game("e03c1bb6-41f1-4331-aa3b-7bedb114221b".parse()?).await?;
 
     Ok(())
 }

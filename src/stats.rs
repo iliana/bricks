@@ -219,6 +219,8 @@ pub(crate) struct Stats {
     pub(crate) home_runs: u16,
     pub(crate) runs: u16,
     pub(crate) runs_batted_in: u16,
+    pub(crate) sacrifice_hits: u16,
+    pub(crate) sacrifice_flies: u16,
     pub(crate) stolen_bases: u16,
     pub(crate) caught_stealing: u16,
     pub(crate) strike_outs: u16,

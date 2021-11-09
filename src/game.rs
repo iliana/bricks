@@ -14,6 +14,7 @@ pub(crate) struct State {
     top_of_inning: bool,
     half_inning_outs: u16,
     at_bat: Option<Uuid>,
+    last_fielded_out: Option<(u16, Uuid)>,
     rbi_credit: Option<Uuid>,
     // key: runner id, value: pitcher to be charged with the earned run
     on_base: HashMap<Uuid, Uuid>,
@@ -29,6 +30,7 @@ impl State {
             top_of_inning: true,
             half_inning_outs: 0,
             at_bat: None,
+            last_fielded_out: None,
             rbi_credit: None,
             on_base: HashMap::new(),
         }
@@ -130,7 +132,13 @@ impl State {
                 }
             }
             9 => checkdesc!(self.home_run(event)?),
-            10 => checkdesc!(self.hit(event)?),
+            10 => {
+                if desc.ends_with("advances on the sacrifice.") {
+                    self.sac(event)?;
+                } else {
+                    checkdesc!(self.hit(event)?);
+                }
+            }
             11 => {
                 self.game_finished = true;
             }
@@ -235,13 +243,32 @@ impl State {
         Ok(())
     }
 
+    fn sac(&mut self, event: &GameEvent) -> Result<()> {
+        ensure!(event.player_tags.len() == 1, "invalid player tag count");
+        self.credit_run(event.player_tags[0])?;
+        let (last_event, batter) = self
+            .last_fielded_out
+            .take()
+            .context("sac advance without a prior fielded out")?;
+        let stats = self.offense_stats(batter);
+        match last_event {
+            7 => stats.sacrifice_flies += 1,
+            8 => stats.sacrifice_hits += 1,
+            _ => unreachable!(),
+        }
+        stats.at_bats -= 1;
+
+        Ok(())
+    }
+
     fn fielded_out(&mut self, event: &GameEvent) -> Result<()> {
-        // fielder's choice
         if let Some((out, _)) = event.description.rsplit_once(" out at ") {
+            // fielder's choice
             ensure!(
                 event.metadata.sibling_ids.len() == 2,
                 "incorrect number of events for fielder's choice"
             );
+            self.record_pitcher_event(|s| &mut s.groundouts_pitched)?;
             let out = *self
                 .offense()
                 .player_names
@@ -253,12 +280,11 @@ impl State {
                 .remove(&out)
                 .context("baserunner out in fielder's choice not on base")?;
             self.on_base.insert(self.batter()?, self.pitcher()?);
-        }
-
-        // double play
-        if event.description.ends_with("hit into a double play!") {
+        } else if event.description.ends_with("hit into a double play!") {
+            // double play
             self.half_inning_outs += 1;
             self.record_batter_event(|s| &mut s.double_plays_grounded_into)?;
+            self.record_pitcher_event(|s| &mut s.groundouts_pitched)?;
             self.record_pitcher_event(|s| &mut s.outs_recorded)?;
             if self.on_base.len() == 1 {
                 self.on_base.clear();
@@ -278,12 +304,14 @@ impl State {
                     .context("unable to determine runner out in double play")?;
                 self.on_base.remove(&out);
             }
-        }
-
-        if event.description.contains("hit a flyout to") {
+        } else if event.description.contains("hit a flyout to") {
             self.record_pitcher_event(|s| &mut s.flyouts_pitched)?;
+            self.last_fielded_out = self.at_bat.map(|id| (event.ty, id));
         } else if event.description.contains("hit a ground out to") {
             self.record_pitcher_event(|s| &mut s.groundouts_pitched)?;
+            self.last_fielded_out = self.at_bat.map(|id| (event.ty, id));
+        } else {
+            unreachable!();
         }
 
         self.batter_out(event)
