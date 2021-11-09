@@ -30,7 +30,7 @@ where
     v.join("; ")
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize)]
 pub(crate) struct AwayHome<T> {
     pub(crate) away: T,
     pub(crate) home: T,
@@ -75,7 +75,7 @@ impl AwayHome<GameStats> {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize)]
 pub(crate) struct GameStats {
     pub(crate) team: Uuid,
     pub(crate) name: String,

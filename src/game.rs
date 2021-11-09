@@ -2,10 +2,11 @@ use crate::feed::GameEvent;
 use crate::stats::{AwayHome, GameStats, Stats};
 use crate::team;
 use anyhow::{bail, ensure, Context, Result};
+use serde::Serialize;
 use std::collections::HashMap;
 use uuid::Uuid;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub(crate) struct State {
     stats: AwayHome<GameStats>,
     game_started: bool,

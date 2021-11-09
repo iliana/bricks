@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <title>{% block title %}{% endblock %} — Bricks</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="bg-white dark:bg-black text-black dark:text-white leading-relaxed">
+    <div class="bg-gray-100 dark:bg-gray-900 py-4">
+      <div class="container mx-auto">
+        <a class="font-bold" href="/">Bricks <span aria-hidden="true">:(🧱)</span></a>
+      </div>
+    </div>
+    <div class="container mx-auto my-4">{% block content %} {% endblock %}</div>
+  </body>
+</html>
