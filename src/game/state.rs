@@ -199,7 +199,7 @@ impl<'a> State<'a> {
                 self.record_pitcher_event(|s| &mut s.strikes_pitched)?;
             }
             262 => {} // electricity zaps a strike away
-            _ => bail!("unexpected event type"),
+            _ => bail!("unexpected event type {}", event.ty),
         }
 
         if usize::from(event.metadata.sub_play) == event.metadata.sibling_ids.len() - 1 {
@@ -364,12 +364,10 @@ impl<'a> State<'a> {
     }
 
     fn credit_run(&mut self, runner: Uuid) -> Result<()> {
-        let pitcher = self.on_base.remove(&runner).with_context(|| {
-            format!(
-                "cannot determine pitcher to charge with earned run by {}",
-                runner
-            )
-        })?;
+        let pitcher = self
+            .on_base
+            .remove(&runner)
+            .context("cannot determine pitcher to charge with earned run")?;
         let inning = self.inning;
         *self
             .offense_mut()
