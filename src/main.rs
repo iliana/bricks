@@ -1,20 +1,18 @@
-mod cache;
 mod chronicler;
+mod db;
 mod feed;
 mod filters;
 mod game;
-mod render;
 mod schedule;
 mod stats;
 mod team;
 
-use anyhow::Result;
 use reqwest::Client;
-use rusqlite::Connection;
-use std::ffi::OsStr;
-use std::path::PathBuf;
-use std::sync::Arc;
-use tokio::sync::Mutex;
+use rocket::fairing::AdHoc;
+use rocket::http::ContentType;
+use rocket::{get, launch, routes, tokio, Orbit, Rocket};
+
+type ResponseResult<T> = std::result::Result<T, rocket::response::Debug<anyhow::Error>>;
 
 const API_BASE: &str = "https://api.blaseball.com";
 const CHRONICLER_BASE: &str = "https://api.sibr.dev/chronicler";
@@ -25,32 +23,65 @@ lazy_static::lazy_static! {
         .user_agent("bricks/0.0 (iliana@sibr.dev)")
         .build()
         .unwrap();
-
-    static ref DB: Arc<Mutex<Connection>> = {
-        let path = std::env::var("BRICKS_DB").expect("BRICKS_DB environment variable not set");
-        Arc::new(Mutex::new(Connection::open(path).expect("failed to open database")))
-    };
-
-    static ref OUT_DIR: PathBuf = PathBuf::from(
-        std::env::var_os("OUT_DIR").unwrap_or_else(|| OsStr::new("out").into())
-    );
 }
 
-refinery::embed_migrations!("./migrations");
+trait ResultExt<T, E> {
+    fn log_err(self) -> Option<T>;
+}
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    dotenv::dotenv().ok();
-    migrations::runner().run(&mut *DB.lock().await)?;
-
-    let mut errored = 0;
-    for game in schedule::load_schedule("gamma8", 1, 0, 8).await? {
-        if !render::render_game(game).await? {
-            errored += 1;
+impl<T, E: std::fmt::Display> ResultExt<T, E> for Result<T, E> {
+    fn log_err(self) -> Option<T> {
+        match self {
+            Ok(v) => Some(v),
+            Err(err) => {
+                log::error!("{}", err);
+                None
+            }
         }
     }
+}
 
-    eprintln!("errored: {}", errored);
+#[get("/styles.css")]
+fn css() -> (ContentType, &'static [u8]) {
+    (
+        ContentType::CSS,
+        include_bytes!(concat!(env!("OUT_DIR"), "/styles.css")),
+    )
+}
 
-    Ok(())
+async fn background(rocket: &Rocket<Orbit>) {
+    let db = db::Db::get_one(rocket).await.unwrap();
+    tokio::spawn(async move {
+        let sim = "gamma8";
+        let season = 0;
+        if let Some(schedule) = schedule::load_schedule(&db, sim, season, 0, 0)
+            .await
+            .log_err()
+        {
+            for (day, game) in schedule {
+                if !game::is_done(&db, game).await.log_err().unwrap_or_default()
+                    && game::process_game(&db, sim, season, day, game)
+                        .await
+                        .log_err()
+                        .is_some()
+                {
+                    log::info!("processed game {}", game);
+                }
+            }
+        }
+    });
+}
+
+#[launch]
+fn rocket() -> _ {
+    rocket::build()
+        .mount("/", routes![css, game::routes::game, game::routes::debug])
+        .attach(db::Db::fairing())
+        .attach(AdHoc::try_on_ignite(
+            "Database migrations",
+            db::run_migrations,
+        ))
+        .attach(AdHoc::on_liftoff("Background tasks", |rocket| {
+            Box::pin(background(rocket))
+        }))
 }

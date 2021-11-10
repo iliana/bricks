@@ -1,3 +1,4 @@
+use crate::db::Db;
 use crate::feed::GameEvent;
 use crate::stats::{AwayHome, GameStats, Stats};
 use crate::team;
@@ -7,8 +8,11 @@ use serde::Serialize;
 use uuid::Uuid;
 
 #[derive(Debug, Serialize)]
-pub(crate) struct State {
-    stats: AwayHome<GameStats>,
+pub(crate) struct State<'a> {
+    #[serde(skip)]
+    db: &'a Db,
+
+    pub(super) stats: AwayHome<GameStats>,
     game_started: bool,
     game_finished: bool,
     inning: u16,
@@ -21,9 +25,11 @@ pub(crate) struct State {
     on_base: IndexMap<Uuid, Uuid>,
 }
 
-impl State {
-    pub(crate) fn new() -> State {
+impl<'a> State<'a> {
+    pub(crate) fn new(db: &'a Db) -> State<'a> {
         State {
+            db,
+
             stats: AwayHome::default(),
             game_started: false,
             game_finished: false,
@@ -223,7 +229,7 @@ impl State {
         self.stats.home.team = event.team_tags[1];
 
         for team in self.stats.teams_mut() {
-            let data = team::load_team(&team.team.to_string(), event.created).await?;
+            let data = team::load_team(self.db, team.team, event.created).await?;
             team.name = data.full_name;
             team.nickname = data.nickname;
             team.shorthand = data.shorthand;

@@ -1,4 +1,4 @@
-use crate::{cache, CLIENT, SACHET_BASE};
+use crate::{db::Db, CLIENT, SACHET_BASE};
 use anyhow::{ensure, Result};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
@@ -54,8 +54,9 @@ impl GameEvent {
     }
 }
 
-pub(crate) async fn load_game_feed(game_id: Uuid) -> Result<Vec<GameEvent>> {
-    let (raw_value, from_cache) = match cache::load(CACHE_KIND, &game_id.to_string(), None).await? {
+pub(crate) async fn load_game_feed(db: &Db, game_id: Uuid) -> Result<Vec<GameEvent>> {
+    let (raw_value, from_cache) = match db.cache_load(CACHE_KIND, game_id.to_string(), None).await?
+    {
         None => (
             CLIENT
                 .get(format!("{}/packets?id={}", SACHET_BASE, game_id))
@@ -76,7 +77,8 @@ pub(crate) async fn load_game_feed(game_id: Uuid) -> Result<Vec<GameEvent>> {
     );
 
     if !from_cache {
-        cache::store(CACHE_KIND, &game_id.to_string(), &raw_value, None).await?;
+        db.cache_store(CACHE_KIND, game_id.to_string(), &raw_value, None)
+            .await?;
     }
 
     Ok(value)

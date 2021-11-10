@@ -1,4 +1,4 @@
-use crate::{cache, API_BASE, CLIENT};
+use crate::{db::Db, API_BASE, CLIENT};
 use anyhow::Result;
 use serde::Deserialize;
 use serde_json::value::RawValue;
@@ -29,16 +29,20 @@ fn cache_key(sim: &str, season: u16, day: u16) -> String {
 }
 
 pub(crate) async fn load_schedule(
+    db: &Db,
     sim: &str,
     season: u16,
     start_day: u16,
     end_day: u16,
-) -> Result<Vec<Uuid>> {
+) -> Result<impl Iterator<Item = (u16, Uuid)>> {
     let day_range = start_day..=end_day;
 
     let mut cached: BTreeMap<u16, Vec<Uuid>> = BTreeMap::new();
     for day in day_range.clone() {
-        if let Some(value) = cache::load(CACHE_KIND, &cache_key(sim, season, day), None).await? {
+        if let Some(value) = db
+            .cache_load(CACHE_KIND, cache_key(sim, season, day), None)
+            .await?
+        {
             cached.insert(day, schedule_to_ids(serde_json::from_slice(&value)?));
         }
     }
@@ -61,9 +65,9 @@ pub(crate) async fn load_schedule(
         for (day, raw_schedule) in response {
             let schedule: Vec<Game> = serde_json::from_str(raw_schedule.get())?;
             if schedule.iter().all(|game| game.game_complete) {
-                cache::store(
+                db.cache_store(
                     CACHE_KIND,
-                    &cache_key(sim, season, day),
+                    cache_key(sim, season, day),
                     raw_schedule.get().as_bytes(),
                     None,
                 )
@@ -73,5 +77,7 @@ pub(crate) async fn load_schedule(
         }
     }
 
-    Ok(cached.into_values().flatten().collect())
+    Ok(cached
+        .into_iter()
+        .flat_map(|(k, v)| v.into_iter().map(move |game| (k, game))))
 }

@@ -30,7 +30,7 @@ where
     v.join("; ")
 }
 
-#[derive(Debug, Default, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize)]
 pub(crate) struct AwayHome<T> {
     pub(crate) away: T,
     pub(crate) home: T,
@@ -39,6 +39,15 @@ pub(crate) struct AwayHome<T> {
 impl<T> AwayHome<T> {
     pub(crate) fn teams_mut(&mut self) -> impl Iterator<Item = &mut T> {
         [&mut self.away, &mut self.home].into_iter()
+    }
+}
+
+impl<T> IntoIterator for AwayHome<T> {
+    type Item = T;
+    type IntoIter = Chain<Once<T>, Once<T>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        std::iter::once(self.away).chain(std::iter::once(self.home))
     }
 }
 
@@ -75,7 +84,7 @@ impl AwayHome<GameStats> {
     }
 }
 
-#[derive(Debug, Default, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize)]
 pub(crate) struct GameStats {
     pub(crate) team: Uuid,
     pub(crate) name: String,

@@ -8,10 +8,10 @@
   <a href="https://api.sibr.dev/eventually/sachet/packets?id={{ id }}">Sachet JSON</a>
 </p>
 
-{% for (description, patch) in log %}
+{% for entry in log %}
 <details>
-  <summary>{{ description }}</summary>
-  <pre class="mb-2">{{ patch }}</pre>
+  <summary>{{ entry.description() }}</summary>
+  <pre class="mb-2">{{ entry.info() }}</pre>
 </details>
 {% endfor %}
 <!-- prettier-ignore -->

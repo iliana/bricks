@@ -1,0 +1,5 @@
+[default]
+log_level = "normal"
+
+[default.databases.db]
+url = "./db.sqlite"
