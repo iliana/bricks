@@ -168,7 +168,10 @@ impl<'a> State<'a> {
             13 => {
                 // Strike
                 checkdesc!(
-                    desc.starts_with("Strike, looking.") || desc.starts_with("Strike, swinging.")
+                    desc.starts_with("Strike, looking.")
+                        || desc.starts_with("Strike, swinging.")
+                        || desc.starts_with("Strikes, looking.")
+                        || desc.starts_with("Strikes, swinging.")
                 );
                 self.record_pitcher_event(|s| &mut s.strikes_pitched)?;
             }
@@ -182,8 +185,11 @@ impl<'a> State<'a> {
                 checkdesc!(desc.starts_with("Foul Ball.") || desc.starts_with("Foul Balls."));
                 self.record_pitcher_event(|s| &mut s.strikes_pitched)?;
             }
-            20 => {} // Shame!
-            28 => {} // end of inning
+            20 => {}  // Shame!
+            23 => {}  // player skipped (Elsewhere or Shelled)
+            28 => {}  // end of inning
+            84 => {}  // player returned from Elsewhere
+            107 => {} // removed modification
             132 => {
                 checkdesc!(desc.ends_with("had their rotation shuffled in the Reverb!"));
                 // do nothing, because type 3 will follow
@@ -269,7 +275,8 @@ impl<'a> State<'a> {
         self.credit_run(event.player_tags[0])?;
         let (last_event, batter) = self
             .last_fielded_out
-            .take()
+            .as_ref()
+            .copied()
             .context("sac advance without a prior fielded out")?;
         let stats = self.offense_stats(batter);
         match last_event {
