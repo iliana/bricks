@@ -78,7 +78,7 @@ async fn load_debug(db: Db, id: Uuid) -> Result<Option<Vec<LogEntry>>> {
     let data: Option<Vec<u8>> = db
         .run(move |conn| {
             conn.query_row(
-                "SELECT log_json FROM game_debug WHERE game_id = ?",
+                "SELECT log_json_zst FROM game_debug WHERE game_id = ?",
                 &[&id as &dyn ToSql],
                 |row| row.get(0),
             )
