@@ -305,6 +305,14 @@ impl<'a> State<'a> {
             self.record_pitcher_event(|s| &mut s.outs_recorded)?;
             if self.on_base.len() == 1 {
                 self.on_base.clear();
+                self.offense_stats(self.batter()?).left_on_base += 1;
+            } else if self.half_inning_outs == 2 {
+                // this double play was made on one out, so it's the last play of the half-inning.
+                // at this point it doesn't matter, so just add to player / team LOB correctly and
+                // clear the baserunner list
+                self.offense_stats(self.batter()?).left_on_base += self.on_base.len();
+                self.offense_mut().left_on_base += self.on_base.len();
+                self.on_base.pop();
             } else {
                 // uh-oh. see the thing here is, the Feed doesn't tell us who the other
                 // out was on, and we have multiple runners on. we'll need to rely on
@@ -324,6 +332,7 @@ impl<'a> State<'a> {
                     .copied()
                     .context("unable to determine runner out in double play")?;
                 self.on_base.remove(&out);
+                self.offense_stats(self.batter()?).left_on_base += 1;
             }
         } else if event.description.contains("hit a flyout to") {
             self.record_pitcher_event(|s| &mut s.flyouts_pitched)?;

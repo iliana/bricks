@@ -59,13 +59,11 @@ async fn background(rocket: &Rocket<Orbit>) {
             .log_err()
         {
             for (day, game) in schedule {
-                if !game::is_done(&db, game).await.log_err().unwrap_or_default()
-                    && game::process_game(&db, sim, season, day, game)
-                        .await
-                        .log_err()
-                        .is_some()
-                {
-                    log::info!("processed game {}", game);
+                if !game::is_done(&db, game).await.log_err().unwrap_or_default() {
+                    match game::process_game(&db, sim, season, day, game).await {
+                        Ok(()) => log::info!("processed game {}", game),
+                        Err(_) => log::error!("failed to process game {}", game),
+                    }
                 }
             }
         }
