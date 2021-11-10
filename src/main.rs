@@ -123,7 +123,15 @@ async fn background(rocket: &Rocket<Orbit>) {
 #[launch]
 fn rocket() -> _ {
     rocket::build()
-        .mount("/", routes![css, game::routes::game, game::routes::debug])
+        .mount(
+            "/",
+            routes![
+                css,
+                game::errors::errors,
+                game::routes::debug,
+                game::routes::game,
+            ],
+        )
         .attach(Db::fairing())
         .attach(AdHoc::try_on_ignite(
             "Database migrations",

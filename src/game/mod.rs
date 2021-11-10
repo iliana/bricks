@@ -1,3 +1,4 @@
+pub(crate) mod errors;
 pub(crate) mod routes;
 pub(crate) mod state;
 
@@ -134,7 +135,7 @@ struct GameStatsRow<'a> {
 async fn store_game_stats(db: &Db, row: GameStatsRow<'_>) -> Result<()> {
     let sim = row.sim.to_owned();
     let stats = match row.stats {
-        Some(stats) => Some(zstd::encode_all(stats.as_bytes(), 19)?),
+        Some(stats) => Some(zstd::encode_all(stats.as_bytes(), 0)?),
         None => None,
     };
     let away = (row.away != Uuid::default()).then(|| row.away);
@@ -174,12 +175,22 @@ enum LogEntry {
 }
 
 async fn store_debug_log(db: &Db, id: Uuid, log: Vec<LogEntry>) -> Result<()> {
-    let compressed = zstd::encode_all(&*serde_json::to_vec(&log)?, 19)?;
+    let error = match log.last() {
+        Some(LogEntry::Err { error, .. }) => {
+            error.lines().rev().next().map(str::trim).map(String::from)
+        }
+        _ => None,
+    };
+    let compressed = zstd::encode_all(&*serde_json::to_vec(&log)?, 0)?;
     db.run(move |conn| {
         conn.execute(
-            "INSERT INTO game_debug (game_id, log_json) VALUES (:id, :log) \
-                ON CONFLICT (game_id) DO UPDATE SET log_json = :log",
-            &[(":id", &id as &dyn ToSql), (":log", &compressed)],
+            "INSERT INTO game_debug (game_id, error, log_json_zst) VALUES (:id, :error, :log) \
+                ON CONFLICT (game_id) DO UPDATE SET error = :error, log_json_zst = :log",
+            &[
+                (":id", &id as &dyn ToSql),
+                (":error", &error),
+                (":log", &compressed),
+            ],
         )
     })
     .await?;

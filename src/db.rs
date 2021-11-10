@@ -51,7 +51,7 @@ impl Db {
         value: &[u8],
         valid: Option<Range<DateTime<Utc>>>,
     ) -> Result<()> {
-        let compressed = zstd::encode_all(&*value, 19)?;
+        let compressed = zstd::encode_all(&*value, 0)?;
         self.run(move |conn| {
             let sql = "INSERT INTO caches (kind, key, value, start_time, end_time) \
                VALUES (:kind, :key, :value, :start_time, :end_time) \
