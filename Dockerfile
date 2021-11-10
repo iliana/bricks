@@ -1,8 +1,8 @@
 FROM node:16-buster as css-builder
 WORKDIR /usr/src/bricks
-COPY . .
+COPY styles.css templates package.json package-lock.json postcss.config.js tailwind.config.js .
 RUN npm ci
-RUN npx postcss styles.css -o styles.min.css
+RUN npx postcss --env production styles.css -o styles.min.css
 
 FROM rust:1.56-buster as builder
 WORKDIR /usr/src/bricks
