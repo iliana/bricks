@@ -29,7 +29,6 @@ impl<'a> State<'a> {
     pub(crate) fn new(db: &'a Db) -> State<'a> {
         State {
             db,
-
             stats: AwayHome::default(),
             game_started: false,
             game_finished: false,
@@ -203,20 +202,23 @@ impl<'a> State<'a> {
             _ => bail!("unexpected event type"),
         }
 
-        if usize::from(event.metadata.sub_play) == event.metadata.sibling_ids.len() - 1
-            && self.half_inning_outs < 3
-        {
-            if let Some(base_runners) = &event.base_runners {
-                let mut known_runners = base_runners.clone();
-                known_runners.sort_unstable();
-                let mut derived_runners = self.on_base.keys().copied().collect::<Vec<_>>();
-                derived_runners.sort_unstable();
-                ensure!(
-                    known_runners == derived_runners,
-                    "baserunner mismatch: {:?} != {:?}",
-                    known_runners,
-                    derived_runners
-                );
+        if usize::from(event.metadata.sub_play) == event.metadata.sibling_ids.len() - 1 {
+            self.last_fielded_out = None;
+            self.rbi_credit = None;
+
+            if self.half_inning_outs < 3 {
+                if let Some(base_runners) = &event.base_runners {
+                    let mut known_runners = base_runners.clone();
+                    known_runners.sort_unstable();
+                    let mut derived_runners = self.on_base.keys().copied().collect::<Vec<_>>();
+                    derived_runners.sort_unstable();
+                    ensure!(
+                        known_runners == derived_runners,
+                        "baserunner mismatch: {:?} != {:?}",
+                        known_runners,
+                        derived_runners
+                    );
+                }
             }
         }
 

@@ -134,7 +134,7 @@ struct GameStatsRow<'a> {
 async fn store_game_stats(db: &Db, row: GameStatsRow<'_>) -> Result<()> {
     let sim = row.sim.to_owned();
     let stats = match row.stats {
-        Some(stats) => Some(zstd::encode_all(stats.as_bytes(), 0)?),
+        Some(stats) => Some(zstd::encode_all(stats.as_bytes(), 19)?),
         None => None,
     };
     let away = (row.away != Uuid::default()).then(|| row.away);
@@ -174,7 +174,7 @@ enum LogEntry {
 }
 
 async fn store_debug_log(db: &Db, id: Uuid, log: Vec<LogEntry>) -> Result<()> {
-    let compressed = zstd::encode_all(&*serde_json::to_vec(&log)?, 0)?;
+    let compressed = zstd::encode_all(&*serde_json::to_vec(&log)?, 19)?;
     db.run(move |conn| {
         conn.execute(
             "INSERT INTO game_debug (game_id, log_json) VALUES (:id, :log) \
