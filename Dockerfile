@@ -1,6 +1,6 @@
 FROM node:16-buster as css-builder
 WORKDIR /usr/src/bricks
-COPY styles.css templates package.json package-lock.json postcss.config.js tailwind.config.js .
+COPY . .
 RUN npm ci
 RUN npx postcss --env production styles.css -o styles.min.css
 
