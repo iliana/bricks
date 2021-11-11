@@ -11,6 +11,7 @@ chrono = { version = "0.4", features = ["serde"] }
 derive_more = "0.99"
 fix-hidden-lifetime-bug = "0.2"
 indexmap = { version = "1", features = ["serde"] }
+itertools = "0.10"
 json-patch = "0.2"
 lazy_static = "1"
 log = "0.4"

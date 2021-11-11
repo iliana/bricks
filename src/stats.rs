@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 fn box_list<'a, F, S>(
     iter: impl IntoIterator<Item = &'a GameStats>,
+    box_names: &HashMap<Uuid, String>,
     f: F,
     force_number: bool,
 ) -> String
@@ -17,13 +18,14 @@ where
     let mut v = Vec::new();
     for game_stats in iter {
         for (id, stats) in &game_stats.stats {
+            let name = box_names.get(id).map(String::as_str).unwrap_or_default();
             let stat = f(stats).to_string();
             if stat.is_empty() || stat == "0" {
                 // nothing
             } else if stat == "1" && !force_number {
-                v.push(game_stats.box_name(id).into());
+                v.push(name.to_owned());
             } else {
-                v.push(format!("{}\u{a0}{}", game_stats.box_name(id), stat));
+                v.push(format!("{}\u{a0}{}", name, stat));
             }
         }
     }
@@ -61,22 +63,43 @@ impl<'a, T> IntoIterator for &'a AwayHome<T> {
 }
 
 impl AwayHome<GameStats> {
-    pub(crate) fn box_pitching_lists(&self) -> BoxList {
+    pub(crate) fn box_names(&self, first_initial: bool) -> HashMap<Uuid, String> {
+        let mut m = self.away.box_names(first_initial);
+        m.extend(self.home.box_names(first_initial));
+        m
+    }
+
+    pub(crate) fn box_pitching_lists(&self, box_names: &HashMap<Uuid, String>) -> BoxList {
         let mut lists = vec![
             (
                 "",
                 "Pitches-strikes",
-                box_list([&self.away, &self.home], |s| s.pitches_strikes(), false),
+                box_list(
+                    [&self.away, &self.home],
+                    box_names,
+                    |s| s.pitches_strikes(),
+                    false,
+                ),
             ),
             (
                 "",
                 "Groundouts-flyouts",
-                box_list([&self.away, &self.home], |s| s.groundouts_flyouts(), false),
+                box_list(
+                    [&self.away, &self.home],
+                    box_names,
+                    |s| s.groundouts_flyouts(),
+                    false,
+                ),
             ),
             (
                 "",
                 "Batters faced",
-                box_list([&self.away, &self.home], |s| s.batters_faced, true),
+                box_list(
+                    [&self.away, &self.home],
+                    box_names,
+                    |s| s.batters_faced,
+                    true,
+                ),
             ),
         ];
         lists.retain(|(_, _, s)| !s.is_empty());
@@ -92,7 +115,6 @@ pub(crate) struct GameStats {
     pub(crate) shorthand: String,
     pub(crate) emoji: String,
     pub(crate) player_names: HashMap<Uuid, String>,
-    pub(crate) player_box_names: HashMap<Uuid, String>,
     pub(crate) lineup: Vec<Vec<Uuid>>,
     pub(crate) pitchers: Vec<Uuid>,
 
@@ -105,82 +127,51 @@ pub(crate) struct GameStats {
 type BoxList = Vec<(&'static str, &'static str, String)>;
 
 impl GameStats {
-    pub(crate) fn box_names(&mut self) {
-        let mut last_names: HashMap<&str, usize> = HashMap::new();
-        for name in self.player_names.values() {
-            *last_names.entry(name).or_default() += 1;
-        }
-
-        self.player_box_names = self
-            .player_names
-            .iter()
-            .map(|(id, name)| {
-                let mut iter = name.rsplitn(2, ' ');
-                let last = iter.next().unwrap();
-                let rem = iter.next();
-
-                let box_name = if last_names.get(last).copied().unwrap_or_default() > 1 {
-                    if let Some(rem) = rem {
-                        let first = rem
-                            .split(' ')
-                            .filter_map(|s| s.chars().next().map(String::from))
-                            .collect::<Vec<_>>();
-                        format!("{}, {}", last, first.join(" "))
-                    } else {
-                        last.into()
-                    }
-                } else {
-                    last.into()
-                };
-
-                (*id, box_name)
-            })
-            .collect();
-    }
-
     pub(crate) fn runs(&self) -> u16 {
         self.inning_run_totals.values().sum()
     }
 
-    pub(crate) fn full_name(&self, id: &Uuid) -> &str {
-        self.player_names
-            .get(id)
-            .map(String::as_str)
-            .unwrap_or_default()
-    }
-
-    pub(crate) fn box_name(&self, id: &Uuid) -> &str {
-        self.player_box_names
-            .get(id)
-            .map(String::as_str)
-            .unwrap_or_default()
+    fn box_names(&self, first_initial: bool) -> HashMap<Uuid, String> {
+        crate::names::box_names(&self.player_names, first_initial)
     }
 
     pub(crate) fn player_stats(&self, id: &Uuid) -> Stats {
         self.stats.get(id).copied().unwrap_or_default()
     }
 
-    fn box_list<F>(&self, f: F, force_number: bool) -> String
+    fn box_list<F>(&self, box_names: &HashMap<Uuid, String>, f: F, force_number: bool) -> String
     where
         F: Fn(&Stats) -> u16,
     {
-        box_list([self], f, force_number)
+        box_list([self], box_names, f, force_number)
     }
 
-    pub(crate) fn box_batting_lists(&self) -> BoxList {
+    pub(crate) fn box_batting_lists(&self, box_names: &HashMap<Uuid, String>) -> BoxList {
         let mut lists = vec![
-            ("2B", "Doubles", self.box_list(|s| s.doubles, false)),
-            ("3B", "Triples", self.box_list(|s| s.triples, false)),
-            ("HR", "Home Runs", self.box_list(|s| s.home_runs, false)),
+            (
+                "2B",
+                "Doubles",
+                self.box_list(box_names, |s| s.doubles, false),
+            ),
+            (
+                "3B",
+                "Triples",
+                self.box_list(box_names, |s| s.triples, false),
+            ),
+            (
+                "HR",
+                "Home Runs",
+                self.box_list(box_names, |s| s.home_runs, false),
+            ),
             (
                 "TB",
                 "Total Bases",
-                self.box_list(|s| s.total_bases(), true),
+                self.box_list(box_names, |s| s.total_bases(), true),
             ),
             (
                 "GDP",
                 "Double Plays Grounded Into",
-                self.box_list(|s| s.double_plays_grounded_into, false),
+                self.box_list(box_names, |s| s.double_plays_grounded_into, false),
             ),
         ];
         lists.retain(|(_, _, s)| !s.is_empty());
@@ -204,17 +195,17 @@ impl GameStats {
         lists
     }
 
-    pub(crate) fn box_baserunning_lists(&self) -> BoxList {
+    pub(crate) fn box_baserunning_lists(&self, box_names: &HashMap<Uuid, String>) -> BoxList {
         let mut lists = vec![
             (
                 "SB",
                 "Stolen Bases",
-                self.box_list(|s| s.stolen_bases, false),
+                self.box_list(box_names, |s| s.stolen_bases, false),
             ),
             (
                 "CS",
                 "Caught Stealing",
-                self.box_list(|s| s.caught_stealing, false),
+                self.box_list(box_names, |s| s.caught_stealing, false),
             ),
         ];
         lists.retain(|(_, _, s)| !s.is_empty());

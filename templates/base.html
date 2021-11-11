@@ -2,12 +2,13 @@
 <html>
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
     <title>{% block title %}{% endblock %} — Bricks</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
-  <body class="bg-white dark:bg-black text-black dark:text-white leading-relaxed">
+  <body class="text-sm md:text-base bg-white dark:bg-black text-black dark:text-white leading-relaxed">
     <div class="bg-gray-100 dark:bg-gray-900">
-      <div class="container mx-auto flex flex-row">
+      <div class="container mx-auto px-4 flex flex-row">
         <div class="flex-1 py-4 space-x-8">
           <a class="font-bold no-underline hover:underline" href="/">Bricks <span aria-hidden="true">:(🧱)</span></a>
         </div>
@@ -18,7 +19,7 @@
         </button>
       </div>
     </div>
-    <div class="container mx-auto my-4">{% block content %} {% endblock %}</div>
+    <div class="container mx-auto my-4 px-4">{% block content %} {% endblock %}</div>
     <script>
       {% include "dark-mode.js" %}
     </script>

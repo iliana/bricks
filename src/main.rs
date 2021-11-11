@@ -3,6 +3,7 @@ mod db;
 mod feed;
 mod filters;
 mod game;
+mod names;
 mod schedule;
 mod seasons;
 mod stats;
@@ -122,7 +123,13 @@ async fn background(rocket: &Rocket<Orbit>) {
 
 #[launch]
 fn rocket() -> _ {
-    rocket::build()
+    let mut rocket = rocket::build();
+    if std::env::var_os("DISABLE_TASKS").is_none() {
+        rocket = rocket.attach(AdHoc::on_liftoff("Background tasks", |rocket| {
+            Box::pin(background(rocket))
+        }))
+    }
+    rocket
         .mount(
             "/",
             routes![
@@ -137,7 +144,4 @@ fn rocket() -> _ {
             "Database migrations",
             db::run_migrations,
         ))
-        .attach(AdHoc::on_liftoff("Background tasks", |rocket| {
-            Box::pin(background(rocket))
-        }))
 }

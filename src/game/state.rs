@@ -51,7 +51,6 @@ impl<'a> State<'a> {
                 team.totals.outs_recorded % 3 == 0,
                 "fractional total innings pitched"
             );
-            team.box_names();
         }
         Ok(stats)
     }

@@ -7,13 +7,20 @@ use rocket::get;
 use rocket::response::content::Html;
 use rusqlite::{OptionalExtension, ToSql};
 use std::borrow::Cow;
+use std::collections::HashMap;
 use uuid::Uuid;
 
 #[get("/game/<id>")]
 pub(crate) async fn game(db: Db, id: Uuid) -> ResponseResult<Option<Html<String>>> {
     Ok(match load_game(db, id).await? {
         GameLoad::Ok(stats) => Some(Html(
-            GamePage { stats }.render().map_err(anyhow::Error::from)?,
+            GamePage {
+                box_names: stats.box_names(true),
+                short_box_names: stats.box_names(false),
+                stats,
+            }
+            .render()
+            .map_err(anyhow::Error::from)?,
         )),
         GameLoad::Failed => Some(Html(
             GameFailedPage { id }
@@ -54,6 +61,8 @@ async fn load_game(db: Db, id: Uuid) -> Result<GameLoad> {
 #[template(path = "game.html")]
 struct GamePage {
     stats: AwayHome<GameStats>,
+    box_names: HashMap<Uuid, String>,
+    short_box_names: HashMap<Uuid, String>,
 }
 
 #[derive(Template)]
