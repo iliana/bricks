@@ -34,9 +34,8 @@ pub(crate) struct GameEventMetadata {
     pub(crate) sub_play: u16,
     pub(crate) sibling_ids: Vec<Uuid>,
 
-    pub(crate) a_player_id: Option<Uuid>,
-    pub(crate) b_player_id: Option<Uuid>,
-    pub(crate) winner: Option<Uuid>,
+    #[serde(flatten)]
+    pub(crate) extra: Option<ExtraData>,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
@@ -46,6 +45,44 @@ pub(crate) struct PitcherData {
     pub(crate) away_pitcher_name: String,
     pub(crate) home_pitcher: Uuid,
     pub(crate) home_pitcher_name: String,
+}
+
+#[derive(Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(untagged)]
+pub(crate) enum ExtraData {
+    Trade(PlayerTradeData),
+    Swap(PlayerSwapData),
+    Incineration(IncinerationReplacementData),
+}
+
+#[derive(Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct PlayerTradeData {
+    pub(crate) a_player_id: Uuid,
+    pub(crate) a_player_name: String,
+    pub(crate) a_team_id: Uuid,
+    pub(crate) b_player_id: Uuid,
+    pub(crate) b_player_name: String,
+    pub(crate) b_team_id: Uuid,
+}
+
+#[derive(Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct PlayerSwapData {
+    pub(crate) a_player_id: Uuid,
+    pub(crate) a_player_name: String,
+    pub(crate) b_player_id: Uuid,
+    pub(crate) b_player_name: String,
+    pub(crate) team_id: Uuid,
+}
+
+#[derive(Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct IncinerationReplacementData {
+    pub(crate) in_player_id: Uuid,
+    pub(crate) in_player_name: String,
+    pub(crate) out_player_id: Uuid,
+    pub(crate) team_id: Uuid,
 }
 
 impl GameEvent {

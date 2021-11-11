@@ -1,5 +1,5 @@
 use crate::db::Db;
-use crate::feed::GameEvent;
+use crate::feed::{ExtraData, GameEvent};
 use crate::stats::{AwayHome, GameStats, Stats};
 use crate::team;
 use anyhow::{bail, ensure, Context, Result};
@@ -110,7 +110,7 @@ impl<'a> State<'a> {
                     self.half_inning_outs += 1;
                     self.record_pitcher_event(|s| &mut s.outs_recorded)?;
                     self.on_base
-                        .remove(&event.player_tags[0])
+                        .shift_remove(&event.player_tags[0])
                         .context("runner caught stealing wasn't on base?")?;
                 } else {
                     self.record_runner_event(event.player_tags[0], |s| &mut s.stolen_bases)?;
@@ -184,19 +184,116 @@ impl<'a> State<'a> {
                 checkdesc!(desc.starts_with("Foul Ball.") || desc.starts_with("Foul Balls."));
                 self.record_pitcher_event(|s| &mut s.strikes_pitched)?;
             }
-            20 => {}  // Shame!
-            23 => {}  // player skipped (Elsewhere or Shelled)
-            28 => {}  // end of inning
-            84 => {}  // player returned from Elsewhere
-            107 => {} // removed modification
+            20 => {} // Shame!
+            23 => {} // player skipped (Elsewhere or Shelled)
+            28 => {} // end of inning
+            41 => {} // Feedback swap (handled in type 113)
+            54 => {} // incineration
+            62 => {
+                // Flooding: baserunners swept
+                checkdesc!(desc == "A surge of Immateria rushes up from Under!\nBaserunners are swept from play!");
+                self.on_base.clear();
+            }
+            84 => {}              // player returned from Elsewhere
+            106 | 107 | 146 => {} // added/removed modification
+            113 => {
+                // Trade (e.g. Feedback swap)
+                checkdesc!(desc.ends_with("were swapped in Feedback."));
+                let trade = match &event.metadata.extra {
+                    Some(ExtraData::Trade(trade)) => trade,
+                    _ => bail!("missing player trade data"),
+                };
+                for team in self.stats.teams_mut() {
+                    if team.team == trade.a_team_id {
+                        team.player_names
+                            .insert(trade.b_player_id, trade.b_player_name.clone());
+                    } else if team.team == trade.b_team_id {
+                        team.player_names
+                            .insert(trade.a_player_id, trade.a_player_name.clone());
+                    }
+                    for position in team.positions_mut() {
+                        if position.last() == Some(&trade.a_player_id) {
+                            position.push(trade.b_player_id);
+                        } else if position.last() == Some(&trade.b_player_id) {
+                            position.push(trade.a_player_id);
+                        }
+                    }
+                }
+                if self.at_bat == Some(trade.a_player_id) {
+                    self.at_bat = Some(trade.b_player_id);
+                } else if self.at_bat == Some(trade.b_player_id) {
+                    self.at_bat = Some(trade.a_player_id);
+                }
+            }
+            114 => {
+                // Swap within team
+                checkdesc!(
+                    desc.ends_with("swapped two players on their roster.")
+                        || desc.ends_with("had several players shuffled in the Reverb!")
+                );
+                let swap = match &event.metadata.extra {
+                    Some(ExtraData::Swap(swap)) => swap,
+                    _ => bail!("missing player swap data"),
+                };
+                for team in self.stats.teams_mut() {
+                    if team.team == swap.team_id {
+                        team.player_names
+                            .insert(swap.a_player_id, swap.a_player_name.clone());
+                        team.player_names
+                            .insert(swap.b_player_id, swap.b_player_name.clone());
+                        for position in team.positions_mut() {
+                            if position.last() == Some(&swap.a_player_id) {
+                                position.push(swap.b_player_id);
+                            } else if position.last() == Some(&swap.b_player_id) {
+                                position.push(swap.a_player_id);
+                            }
+                        }
+                    }
+                }
+                if self.at_bat == Some(swap.a_player_id) {
+                    self.at_bat = Some(swap.b_player_id);
+                } else if self.at_bat == Some(swap.b_player_id) {
+                    self.at_bat = Some(swap.a_player_id);
+                }
+            }
+            116 => {
+                // Incineration
+                if desc.contains("replaced the incinerated") {
+                    let replacement = match &event.metadata.extra {
+                        Some(ExtraData::Incineration(replacement)) => replacement,
+                        _ => bail!("missing incineration replacement data"),
+                    };
+                    for team in self.stats.teams_mut() {
+                        if team.team == replacement.team_id {
+                            team.player_names.insert(
+                                replacement.in_player_id,
+                                replacement.in_player_name.clone(),
+                            );
+                            for position in team.positions_mut() {
+                                if position.last() == Some(&replacement.out_player_id) {
+                                    position.push(replacement.in_player_id);
+                                }
+                            }
+                        }
+                    }
+                } else if desc.starts_with("They're replaced by") {
+                    // nothing, redundant event
+                } else {
+                    checkdesc!(false);
+                }
+            }
+            117 => {} // player stat increase
+            125 => {} // player entered Hall of Flame
             132 => {
                 checkdesc!(desc.ends_with("had their rotation shuffled in the Reverb!"));
                 // do nothing, because type 3 will follow
             }
-            209 => {} // score message
+            137 => {}       // player hatched
+            209 => {}       // score message
             214 | 215 => {} // team collected a Win
-            216 => {} // game over
-            223 => {} // weather is happening
+            216 => {}       // game over
+            223 => {}       // weather is happening
+            252 => {}       // Night Shift (handled in type 114)
             261 => {
                 // Double strike
                 checkdesc!(desc.ends_with("fires a Double Strike!"));
@@ -301,7 +398,7 @@ impl<'a> State<'a> {
                 .with_context(|| format!("could not determine id for baserunner {}", out))?
                 .0;
             self.on_base
-                .remove(&out)
+                .shift_remove(&out)
                 .context("baserunner out in fielder's choice not on base")?;
             self.on_base.insert(self.batter()?, self.pitcher()?);
         } else if event.description.ends_with("hit into a double play!") {
@@ -339,7 +436,7 @@ impl<'a> State<'a> {
                     .find(|runner| !base_runners.contains(runner))
                     .copied()
                     .context("unable to determine runner out in double play")?;
-                self.on_base.remove(&out);
+                self.on_base.shift_remove(&out);
                 self.offense_stats(self.batter()?).left_on_base += 1;
             }
         } else if event.description.contains("hit a flyout to") {
@@ -372,7 +469,7 @@ impl<'a> State<'a> {
     fn credit_run(&mut self, runner: Uuid) -> Result<()> {
         let pitcher = self
             .on_base
-            .remove(&runner)
+            .shift_remove(&runner)
             .context("cannot determine pitcher to charge with earned run")?;
         let inning = self.inning;
         *self

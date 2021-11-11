@@ -61,7 +61,9 @@
         </tr>
         {% for row in team.lineup %}{% for player in row %}
         <tr class="hover:bg-yellow-100 dark:hover:bg-yellow-900">
-          <td>{{ box_names.get(player.clone()).map(String::as_str).unwrap_or_default() }}</td>
+          <td class="{% if !loop.first %}pl-4{% endif %}">
+            {{ box_names.get(player.clone()).map(String::as_str).unwrap_or_default() }}
+          </td>
           {% let player_stats = team.player_stats(player) %}
           <td class="pl-2 text-right">{{ player_stats.at_bats }}</td>
           <td class="pl-2 text-right">{{ player_stats.runs }}</td>

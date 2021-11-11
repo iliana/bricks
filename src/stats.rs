@@ -127,6 +127,10 @@ pub(crate) struct GameStats {
 type BoxList = Vec<(&'static str, &'static str, String)>;
 
 impl GameStats {
+    pub(crate) fn positions_mut(&mut self) -> impl Iterator<Item = &mut Vec<Uuid>> {
+        self.lineup.iter_mut().chain([&mut self.pitchers])
+    }
+
     pub(crate) fn runs(&self) -> u16 {
         self.inning_run_totals.values().sum()
     }
