@@ -194,7 +194,7 @@ impl<'a> State<'a> {
                 // do nothing, because type 3 will follow
             }
             209 => {} // score message
-            214 => {} // team collected a Win
+            214 | 215 => {} // team collected a Win
             216 => {} // game over
             223 => {} // weather is happening
             261 => {
