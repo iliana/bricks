@@ -11,7 +11,7 @@ mod team;
 mod today;
 
 use crate::db::Db;
-use crate::seasons::Season;
+use crate::seasons::{Season, SIM_NAMES};
 use anyhow::Context;
 use reqwest::Client;
 use rocket::fairing::AdHoc;
@@ -107,6 +107,14 @@ async fn background(rocket: &Rocket<Orbit>) {
                     .context("failed to fetch simulationData")
                     .log_err()
                 {
+                    if !SIM_NAMES
+                        .read()
+                        .await
+                        .contains_key(&(today.id.clone(), today.season + 1))
+                    {
+                        seasons::load_seasons().await.log_err();
+                    }
+
                     process_season(
                         &db,
                         Season {

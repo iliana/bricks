@@ -27,7 +27,7 @@ pub(crate) async fn game(db: Db, id: Uuid) -> ResponseResult<Option<Html<String>
                 era: SIM_NAMES
                     .read()
                     .await
-                    .get(&sim)
+                    .get(&(sim, season + 1))
                     .map(String::as_str)
                     .unwrap_or("Unknown Era"),
                 season: season + 1,

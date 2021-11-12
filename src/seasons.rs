@@ -1,11 +1,11 @@
 use crate::{API_BASE, CLIENT, CONFIGS_BASE};
 use anyhow::{Context, Result};
+use indexmap::IndexMap;
 use rocket::tokio::sync::RwLock;
 use serde::Deserialize;
-use std::collections::HashMap;
 
 lazy_static::lazy_static! {
-    pub(crate) static ref SIM_NAMES: RwLock<HashMap<String, String>> = RwLock::default();
+    pub(crate) static ref SIM_NAMES: RwLock<IndexMap<(String, u16), String>> = RwLock::default();
 }
 
 #[derive(Debug, Deserialize)]
@@ -41,8 +41,11 @@ pub(crate) async fn load_seasons() -> Result<Vec<Season>> {
         .await?;
 
     let mut guard = SIM_NAMES.write().await;
+    guard.clear();
     for entry in &response.collection {
-        guard.insert(entry.sim.clone(), entry.name.clone());
+        for season in &entry.seasons {
+            guard.insert((entry.sim.clone(), *season), entry.name.clone());
+        }
     }
     drop(guard);
 
