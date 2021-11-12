@@ -2,13 +2,13 @@
 <!-- prettier-ignore -->
 {% block title %}Processing error dashboard{% endblock %}
 {% block content %}
-<h1 class="text-2xl md:text-3xl lg:text-4xl font-bold my-6">Processing error dashboard</h1>
+<h1>Processing error dashboard</h1>
 <p class="my-4">
   This is a list of all game feeds that Bricks failed to process, sorted by their root cause error message.
 </p>
 
 {% for (error, games) in errors %}
-<h2 class="text-2xl font-bold my-4">{{ error }}</h2>
+<h2>{{ error }}</h2>
 <ul>
   {% for game in games %}
   <li><a href="/game/{{ game }}/debug">{{ game }}</a></li>
