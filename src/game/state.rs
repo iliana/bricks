@@ -27,9 +27,14 @@ pub(crate) struct State<'a> {
 
 impl<'a> State<'a> {
     pub(crate) fn new(db: &'a Db) -> State<'a> {
+        let mut stats: AwayHome<GameStats> = AwayHome::default();
+        for team in stats.teams_mut() {
+            team.pitchers.push(Uuid::default());
+        }
+
         State {
             db,
-            stats: AwayHome::default(),
+            stats,
             game_started: false,
             game_finished: false,
             inning: 1,
@@ -44,6 +49,7 @@ impl<'a> State<'a> {
 
     pub(crate) fn finish(self) -> Result<AwayHome<GameStats>> {
         ensure!(self.game_finished, "game incomplete");
+        self.ensure_pitchers_known()?;
         let mut stats = self.stats;
         for team in stats.teams_mut() {
             team.totals = team.stats.values().copied().sum();
@@ -51,8 +57,26 @@ impl<'a> State<'a> {
                 team.totals.outs_recorded % 3 == 0,
                 "fractional total innings pitched"
             );
+            ensure!(
+                !team.stats.contains_key(&Uuid::default()),
+                "placeholder pitcher ID present in stats"
+            );
+            ensure!(
+                !team.player_names.contains_key(&Uuid::default()),
+                "placeholder pitcher ID present in player names"
+            );
         }
         Ok(stats)
+    }
+
+    fn ensure_pitchers_known(&self) -> Result<()> {
+        ensure!(
+            self.stats
+                .iter()
+                .all(|team| *team.pitchers.first().unwrap() != Uuid::default()),
+            "initial pitchers are unknown"
+        );
+        Ok(())
     }
 
     pub(crate) async fn push(&mut self, event: &GameEvent) -> Result<()> {
@@ -62,18 +86,28 @@ impl<'a> State<'a> {
     }
 
     async fn push_inner(&mut self, event: &GameEvent) -> Result<()> {
-        if self.stats.away.pitchers.is_empty() {
+        if *self.stats.away.pitchers.first().unwrap() == Uuid::default() {
             if let Some(pitchers) = &event.pitcher_data {
-                self.stats.away.pitchers.push(pitchers.away_pitcher);
-                self.stats
-                    .away
-                    .player_names
-                    .insert(pitchers.away_pitcher, pitchers.away_pitcher_name.to_owned());
-                self.stats.home.pitchers.push(pitchers.home_pitcher);
-                self.stats
-                    .home
-                    .player_names
-                    .insert(pitchers.home_pitcher, pitchers.home_pitcher_name.to_owned());
+                ensure!(
+                    self.stats.iter().all(|team| team.pitchers.len() == 1),
+                    "roster change occurred while pitchers were unknown"
+                );
+                for (team, (pitcher, name)) in self.stats.teams_mut().zip([
+                    (pitchers.away_pitcher, &pitchers.away_pitcher_name),
+                    (pitchers.home_pitcher, &pitchers.home_pitcher_name),
+                ]) {
+                    *team.pitchers.get_mut(0).unwrap() = pitcher;
+                    if let Some(stats) = team.stats.remove(&Uuid::default()) {
+                        team.stats.insert(pitcher, stats);
+                    }
+                    team.player_names.insert(pitcher, name.to_owned());
+                }
+                let current_pitcher = self.pitcher();
+                for (_, pitcher) in self.on_base.iter_mut() {
+                    if *pitcher == Uuid::default() {
+                        *pitcher = current_pitcher;
+                    }
+                }
             }
         }
 
@@ -90,6 +124,7 @@ impl<'a> State<'a> {
             2 => self.next_half_inning()?,
             3 => {
                 // Pitcher change
+                self.ensure_pitchers_known()?;
                 if let Some((name, _)) = desc.rsplit_once(" is now pitching for the ") {
                     ensure!(event.player_tags.len() == 1, "invalid player tag count");
                     self.defense_mut().pitchers.push(event.player_tags[0]);
@@ -199,6 +234,7 @@ impl<'a> State<'a> {
             113 => {
                 // Trade (e.g. Feedback swap)
                 checkdesc!(desc.ends_with("were swapped in Feedback."));
+                self.ensure_pitchers_known()?;
                 let trade = match &event.metadata.extra {
                     Some(ExtraData::Trade(trade)) => trade,
                     _ => bail!("missing player trade data"),
@@ -231,6 +267,7 @@ impl<'a> State<'a> {
                     desc.ends_with("swapped two players on their roster.")
                         || desc.ends_with("had several players shuffled in the Reverb!")
                 );
+                self.ensure_pitchers_known()?;
                 let swap = match &event.metadata.extra {
                     Some(ExtraData::Swap(swap)) => swap,
                     _ => bail!("missing player swap data"),
@@ -259,6 +296,7 @@ impl<'a> State<'a> {
             116 => {
                 // Incineration
                 if desc.contains("replaced the incinerated") {
+                    self.ensure_pitchers_known()?;
                     let replacement = match &event.metadata.extra {
                         Some(ExtraData::Incineration(replacement)) => replacement,
                         _ => bail!("missing incineration replacement data"),
@@ -329,8 +367,9 @@ impl<'a> State<'a> {
 
     async fn start_event(&mut self, event: &GameEvent) -> Result<()> {
         ensure!(event.team_tags.len() == 2, "invalid team tag count");
-        self.stats.away.team = event.team_tags[0];
-        self.stats.home.team = event.team_tags[1];
+        for (team, id) in self.stats.teams_mut().zip(event.team_tags.iter()) {
+            team.team = *id;
+        }
 
         for team in self.stats.teams_mut() {
             let data = team::load_team(self.db, team.team, event.created).await?;
@@ -404,7 +443,7 @@ impl<'a> State<'a> {
             self.on_base
                 .shift_remove(&out)
                 .context("baserunner out in fielder's choice not on base")?;
-            self.on_base.insert(self.batter()?, self.pitcher()?);
+            self.on_base.insert(self.batter()?, self.pitcher());
         } else if event.description.ends_with("hit into a double play!") {
             // double play
             self.half_inning_outs += 1;
@@ -495,7 +534,7 @@ impl<'a> State<'a> {
 
     fn walk(&mut self, event: &GameEvent) -> Result<bool> {
         if event.description.ends_with("draws a walk.") {
-            self.on_base.insert(self.batter()?, self.pitcher()?);
+            self.on_base.insert(self.batter()?, self.pitcher());
             self.record_batter_event(|s| &mut s.plate_appearances)?;
             self.record_batter_event(|s| &mut s.walks)?;
             self.rbi_credit = self.at_bat;
@@ -529,7 +568,7 @@ impl<'a> State<'a> {
     fn hit(&mut self, event: &GameEvent) -> Result<bool> {
         macro_rules! common {
             () => {{
-                self.on_base.insert(self.batter()?, self.pitcher()?);
+                self.on_base.insert(self.batter()?, self.pitcher());
                 self.record_batter_event(|s| &mut s.plate_appearances)?;
                 self.record_batter_event(|s| &mut s.at_bats)?;
                 if self.risp(event) {
@@ -613,12 +652,8 @@ impl<'a> State<'a> {
         self.at_bat.context("nobody at bat")
     }
 
-    fn pitcher(&self) -> Result<Uuid> {
-        self.defense()
-            .pitchers
-            .last()
-            .copied()
-            .context("unknown pitcher")
+    fn pitcher(&self) -> Uuid {
+        *self.defense().pitchers.last().unwrap()
     }
 
     fn record_batter_event<F>(&mut self, f: F) -> Result<()>
@@ -642,7 +677,7 @@ impl<'a> State<'a> {
     where
         F: FnOnce(&mut Stats) -> &mut u16,
     {
-        let pitcher = self.pitcher()?;
+        let pitcher = self.pitcher();
         *f(self.defense_stats(pitcher)) += 1;
         Ok(())
     }

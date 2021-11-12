@@ -39,6 +39,10 @@ pub(crate) struct AwayHome<T> {
 }
 
 impl<T> AwayHome<T> {
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &T> {
+        self.into_iter()
+    }
+
     pub(crate) fn teams_mut(&mut self) -> impl Iterator<Item = &mut T> {
         [&mut self.away, &mut self.home].into_iter()
     }
