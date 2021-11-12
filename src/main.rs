@@ -4,6 +4,7 @@ mod feed;
 mod filters;
 mod game;
 mod names;
+mod player;
 mod schedule;
 mod seasons;
 mod stats;
@@ -143,6 +144,7 @@ fn rocket() -> _ {
                 game::errors::errors,
                 game::routes::debug,
                 game::routes::game,
+                player::player,
             ],
         )
         .attach(Db::fairing())

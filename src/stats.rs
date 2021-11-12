@@ -1,4 +1,4 @@
-use derive_more::{Add, Sum};
+use derive_more::{Add, AddAssign, Sum};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
@@ -221,7 +221,7 @@ impl GameStats {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, Deserialize, Serialize, Add, Sum)]
+#[derive(Debug, Default, Clone, Copy, Deserialize, Serialize, Add, AddAssign, Sum)]
 pub(crate) struct Stats {
     // Batting stats
     pub(crate) plate_appearances: u16,
@@ -258,6 +258,14 @@ pub(crate) struct Stats {
 }
 
 impl Stats {
+    pub(crate) fn is_batting(&self) -> bool {
+        self.plate_appearances > 0
+    }
+
+    pub(crate) fn is_pitching(&self) -> bool {
+        self.strikes_pitched + self.balls_pitched > 0
+    }
+
     pub(crate) fn hits(&self) -> u16 {
         self.singles + self.doubles + self.triples + self.home_runs
     }
