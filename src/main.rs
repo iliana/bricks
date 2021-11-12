@@ -90,46 +90,44 @@ async fn background(rocket: &Rocket<Orbit>) {
             }
         }
 
-        // load all past games
-        if let Some(seasons) = seasons::load_seasons().await.log_err() {
-            for season in seasons {
-                process_season(&db, season, false).await;
-            }
-        }
+        let seasons = seasons::load_seasons().await;
 
-        // loop for loading new games
-        loop {
-            if let Some(today) = today::load_today()
-                .await
-                .context("failed to fetch simulationData")
-                .log_err()
-            {
-                process_season(
-                    &db,
-                    Season {
-                        sim: today.id,
-                        season: today.season,
-                        last_day: today.day,
-                    },
-                    true,
-                )
-                .await;
+        if std::env::var_os("DISABLE_TASKS").is_none() {
+            // load all past games
+            if let Some(seasons) = seasons.log_err() {
+                for season in seasons {
+                    process_season(&db, season, false).await;
+                }
             }
 
-            sleep(Duration::from_secs(120)).await;
+            // loop for loading new games
+            loop {
+                if let Some(today) = today::load_today()
+                    .await
+                    .context("failed to fetch simulationData")
+                    .log_err()
+                {
+                    process_season(
+                        &db,
+                        Season {
+                            sim: today.id,
+                            season: today.season,
+                            last_day: today.day,
+                        },
+                        true,
+                    )
+                    .await;
+                }
+
+                sleep(Duration::from_secs(120)).await;
+            }
         }
     });
 }
 
 #[launch]
 fn rocket() -> _ {
-    let mut rocket = rocket::build();
-    if std::env::var_os("DISABLE_TASKS").is_none() {
-        rocket = rocket.attach(AdHoc::on_liftoff("Background tasks", |rocket| {
-            Box::pin(background(rocket))
-        }))
-    }
-    rocket
+    rocket::build()
         .mount(
             "/",
             routes![
@@ -144,4 +142,7 @@ fn rocket() -> _ {
             "Database migrations",
             db::run_migrations,
         ))
+        .attach(AdHoc::on_liftoff("Background tasks", |rocket| {
+            Box::pin(background(rocket))
+        }))
 }

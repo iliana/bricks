@@ -1,4 +1,5 @@
 use crate::game::LogEntry;
+use crate::seasons::SIM_NAMES;
 use crate::stats::{AwayHome, GameStats};
 use crate::{db::Db, filters, ResponseResult};
 use anyhow::Result;
@@ -13,11 +14,24 @@ use uuid::Uuid;
 #[get("/game/<id>")]
 pub(crate) async fn game(db: Db, id: Uuid) -> ResponseResult<Option<Html<String>>> {
     Ok(match load_game(db, id).await? {
-        GameLoad::Ok(stats) => Some(Html(
+        GameLoad::Ok {
+            stats,
+            sim,
+            season,
+            day,
+        } => Some(Html(
             GamePage {
                 box_names: stats.box_names(true),
                 short_box_names: stats.box_names(false),
                 stats,
+                era: SIM_NAMES
+                    .read()
+                    .await
+                    .get(&sim)
+                    .map(String::as_str)
+                    .unwrap_or("Unknown Era"),
+                season: season + 1,
+                day: day + 1,
             }
             .render()
             .map_err(anyhow::Error::from)?,
@@ -32,7 +46,12 @@ pub(crate) async fn game(db: Db, id: Uuid) -> ResponseResult<Option<Html<String>
 }
 
 enum GameLoad {
-    Ok(AwayHome<GameStats>),
+    Ok {
+        stats: AwayHome<GameStats>,
+        sim: String,
+        season: u16,
+        day: u16,
+    },
     Failed,
     NotFound,
 }
@@ -40,29 +59,37 @@ enum GameLoad {
 async fn load_game(db: Db, id: Uuid) -> Result<GameLoad> {
     // doubly-nested option! the outer is to detect if a row is present, the inner is to detect if
     // there was an error processing this game
-    let data: Option<Option<Vec<u8>>> = db
+    let data: Option<(Option<Vec<u8>>, String, u16, u16)> = db
         .run(move |conn| {
             conn.query_row(
-                "SELECT stats_json_zst FROM game_stats WHERE game_id = ?",
+                "SELECT stats_json_zst, sim, season, day FROM game_stats WHERE game_id = ?",
                 &[&id as &dyn ToSql],
-                |row| row.get(0),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
             )
             .optional()
         })
         .await?;
     Ok(match data {
-        Some(Some(data)) => GameLoad::Ok(serde_json::from_slice(&zstd::decode_all(&*data)?)?),
-        Some(None) => GameLoad::Failed,
+        Some((Some(data), sim, season, day)) => GameLoad::Ok {
+            stats: serde_json::from_slice(&zstd::decode_all(&*data)?)?,
+            sim,
+            season,
+            day,
+        },
+        Some((None, _, _, _)) => GameLoad::Failed,
         None => GameLoad::NotFound,
     })
 }
 
 #[derive(Template)]
 #[template(path = "game.html")]
-struct GamePage {
+struct GamePage<'a> {
     stats: AwayHome<GameStats>,
     box_names: HashMap<Uuid, String>,
     short_box_names: HashMap<Uuid, String>,
+    era: &'a str,
+    season: u16,
+    day: u16,
 }
 
 #[derive(Template)]
