@@ -346,6 +346,10 @@ impl<'a> State<'a> {
         Ok(())
     }
 
+    fn risp(&self, event: &GameEvent) -> bool {
+        event.risp() || self.on_base.len() > 1
+    }
+
     fn next_half_inning(&mut self) -> Result<()> {
         self.offense_mut().left_on_base += self.on_base.len();
 
@@ -457,7 +461,7 @@ impl<'a> State<'a> {
         self.offense_stats(self.batter()?).left_on_base += self.on_base.len();
         self.record_batter_event(|s| &mut s.plate_appearances)?;
         self.record_batter_event(|s| &mut s.at_bats)?;
-        if event.risp() {
+        if self.risp(event) {
             self.record_batter_event(|s| &mut s.at_bats_with_risp)?;
         }
         self.at_bat = None;
@@ -528,7 +532,7 @@ impl<'a> State<'a> {
                 self.on_base.insert(self.batter()?, self.pitcher()?);
                 self.record_batter_event(|s| &mut s.plate_appearances)?;
                 self.record_batter_event(|s| &mut s.at_bats)?;
-                if event.risp() {
+                if self.risp(event) {
                     self.record_batter_event(|s| &mut s.at_bats_with_risp)?;
                     self.record_batter_event(|s| &mut s.hits_with_risp)?;
                 }
