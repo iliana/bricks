@@ -1,6 +1,5 @@
-use crate::db::Db;
 use crate::feed::{ExtraData, GameEvent};
-use crate::stats::{AwayHome, GameStats, Stats};
+use crate::game::{Game, Stats, Team};
 use crate::team;
 use anyhow::{bail, ensure, Context, Result};
 use indexmap::IndexMap;
@@ -8,11 +7,8 @@ use serde::Serialize;
 use uuid::Uuid;
 
 #[derive(Debug, Serialize)]
-pub(crate) struct State<'a> {
-    #[serde(skip)]
-    db: &'a Db,
-
-    pub(super) stats: AwayHome<GameStats>,
+pub struct State {
+    game: Game,
     game_started: bool,
     game_finished: bool,
     inning: u16,
@@ -25,16 +21,18 @@ pub(crate) struct State<'a> {
     on_base: IndexMap<Uuid, Uuid>,
 }
 
-impl<'a> State<'a> {
-    pub(crate) fn new(db: &'a Db) -> State<'a> {
-        let mut stats: AwayHome<GameStats> = AwayHome::default();
-        for team in stats.teams_mut() {
+impl State {
+    pub fn new(sim: &str) -> State {
+        let mut game = Game {
+            sim: sim.into(),
+            ..Default::default()
+        };
+        for team in game.teams_mut() {
             team.pitchers.push(Uuid::default());
         }
 
         State {
-            db,
-            stats,
+            game,
             game_started: false,
             game_finished: false,
             inning: 1,
@@ -47,14 +45,18 @@ impl<'a> State<'a> {
         }
     }
 
-    pub(crate) fn finish(self) -> Result<AwayHome<GameStats>> {
+    pub fn finish(self) -> Result<Game> {
         ensure!(self.game_finished, "game incomplete");
         self.ensure_pitchers_known()?;
-        let mut stats = self.stats;
-        for team in stats.teams_mut() {
-            team.totals = team.stats.values().copied().sum();
+        let game = self.game;
+        for team in game.teams() {
             ensure!(
-                team.totals.outs_recorded % 3 == 0,
+                team.stats
+                    .values()
+                    .map(|stats| stats.outs_recorded)
+                    .sum::<u16>()
+                    % 3
+                    == 0,
                 "fractional total innings pitched"
             );
             ensure!(
@@ -66,33 +68,33 @@ impl<'a> State<'a> {
                 "placeholder pitcher ID present in player names"
             );
         }
-        Ok(stats)
+        Ok(game)
     }
 
     fn ensure_pitchers_known(&self) -> Result<()> {
         ensure!(
-            self.stats
-                .iter()
+            self.game
+                .teams()
                 .all(|team| *team.pitchers.first().unwrap() != Uuid::default()),
             "initial pitchers are unknown"
         );
         Ok(())
     }
 
-    pub(crate) async fn push(&mut self, event: &GameEvent) -> Result<()> {
+    pub async fn push(&mut self, event: &GameEvent) -> Result<()> {
         self.push_inner(event)
             .await
             .with_context(|| format!("while processing event {}, type {}", event.id, event.ty))
     }
 
     async fn push_inner(&mut self, event: &GameEvent) -> Result<()> {
-        if *self.stats.away.pitchers.first().unwrap() == Uuid::default() {
+        if *self.game.away.pitchers.first().unwrap() == Uuid::default() {
             if let Some(pitchers) = &event.pitcher_data {
                 ensure!(
-                    self.stats.iter().all(|team| team.pitchers.len() == 1),
+                    self.game.teams().all(|team| team.pitchers.len() == 1),
                     "roster change occurred while pitchers were unknown"
                 );
-                for (team, (pitcher, name)) in self.stats.teams_mut().zip([
+                for (team, (pitcher, name)) in self.game.teams_mut().zip([
                     (pitchers.away_pitcher, &pitchers.away_pitcher_name),
                     (pitchers.home_pitcher, &pitchers.home_pitcher_name),
                 ]) {
@@ -239,11 +241,11 @@ impl<'a> State<'a> {
                     Some(ExtraData::Trade(trade)) => trade,
                     _ => bail!("missing player trade data"),
                 };
-                for team in self.stats.teams_mut() {
-                    if team.team == trade.a_team_id {
+                for team in self.game.teams_mut() {
+                    if team.id == trade.a_team_id {
                         team.player_names
                             .insert(trade.b_player_id, trade.b_player_name.clone());
-                    } else if team.team == trade.b_team_id {
+                    } else if team.id == trade.b_team_id {
                         team.player_names
                             .insert(trade.a_player_id, trade.a_player_name.clone());
                     }
@@ -272,8 +274,8 @@ impl<'a> State<'a> {
                     Some(ExtraData::Swap(swap)) => swap,
                     _ => bail!("missing player swap data"),
                 };
-                for team in self.stats.teams_mut() {
-                    if team.team == swap.team_id {
+                for team in self.game.teams_mut() {
+                    if team.id == swap.team_id {
                         team.player_names
                             .insert(swap.a_player_id, swap.a_player_name.clone());
                         team.player_names
@@ -301,8 +303,8 @@ impl<'a> State<'a> {
                         Some(ExtraData::Incineration(replacement)) => replacement,
                         _ => bail!("missing incineration replacement data"),
                     };
-                    for team in self.stats.teams_mut() {
-                        if team.team == replacement.team_id {
+                    for team in self.game.teams_mut() {
+                        if team.id == replacement.team_id {
                             team.player_names.insert(
                                 replacement.in_player_id,
                                 replacement.in_player_name.clone(),
@@ -366,13 +368,18 @@ impl<'a> State<'a> {
     }
 
     async fn start_event(&mut self, event: &GameEvent) -> Result<()> {
+        self.game.season = event.season;
+        self.game.day = event.day;
+
         ensure!(event.team_tags.len() == 2, "invalid team tag count");
-        for (team, id) in self.stats.teams_mut().zip(event.team_tags.iter()) {
-            team.team = *id;
+        for (team, id) in self.game.teams_mut().zip(event.team_tags.iter()) {
+            team.id = *id;
         }
 
-        for team in self.stats.teams_mut() {
-            let data = team::load_team(self.db, team.team, event.created).await?;
+        for team in self.game.teams_mut() {
+            let data = team::load(team.id, event.created)
+                .await?
+                .context("no data for team")?;
             team.name = data.full_name;
             team.nickname = data.nickname;
             team.shorthand = data.shorthand;
@@ -386,7 +393,7 @@ impl<'a> State<'a> {
     }
 
     fn risp(&self, event: &GameEvent) -> bool {
-        event.risp() || self.on_base.len() > 1
+        event.bases_occupied.iter().flatten().any(|base| *base >= 1) || self.on_base.len() > 1
     }
 
     fn next_half_inning(&mut self) -> Result<()> {
@@ -402,7 +409,7 @@ impl<'a> State<'a> {
         }
 
         let inning = self.inning;
-        self.offense_mut().inning_run_totals.insert(inning, 0);
+        self.offense_mut().inning_runs.insert(inning, 0);
         self.half_inning_outs = 0;
         self.on_base.clear();
 
@@ -515,11 +522,7 @@ impl<'a> State<'a> {
             .shift_remove(&runner)
             .context("cannot determine pitcher to charge with earned run")?;
         let inning = self.inning;
-        *self
-            .offense_mut()
-            .inning_run_totals
-            .entry(inning)
-            .or_default() += 1;
+        *self.offense_mut().inning_runs.entry(inning).or_default() += 1;
         self.record_runner_event(runner, |s| &mut s.runs)?;
         if let Some(rbi_credit) = self.rbi_credit {
             self.record_runner_event(rbi_credit, |s| &mut s.runs_batted_in)?;
@@ -608,35 +611,35 @@ impl<'a> State<'a> {
         }
     }
 
-    fn offense(&self) -> &GameStats {
+    fn offense(&self) -> &Team {
         if self.top_of_inning {
-            &self.stats.away
+            &self.game.away
         } else {
-            &self.stats.home
+            &self.game.home
         }
     }
 
-    fn offense_mut(&mut self) -> &mut GameStats {
+    fn offense_mut(&mut self) -> &mut Team {
         if self.top_of_inning {
-            &mut self.stats.away
+            &mut self.game.away
         } else {
-            &mut self.stats.home
+            &mut self.game.home
         }
     }
 
-    fn defense(&self) -> &GameStats {
+    fn defense(&self) -> &Team {
         if self.top_of_inning {
-            &self.stats.home
+            &self.game.home
         } else {
-            &self.stats.away
+            &self.game.away
         }
     }
 
-    fn defense_mut(&mut self) -> &mut GameStats {
+    fn defense_mut(&mut self) -> &mut Team {
         if self.top_of_inning {
-            &mut self.stats.home
+            &mut self.game.home
         } else {
-            &mut self.stats.away
+            &mut self.game.away
         }
     }
 

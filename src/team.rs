@@ -1,66 +1,32 @@
-use crate::{chronicler::Versions, db::Db, CHRONICLER_BASE, CLIENT};
-use anyhow::{Context, Result};
-use chrono::{DateTime, SecondsFormat, Utc};
-use serde::Deserialize;
-use serde_json::value::RawValue;
-use std::ops::Range;
+use crate::chronicler;
+use anyhow::Result;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Deserializer};
 use uuid::Uuid;
 
-const CACHE_KIND: &str = "ChroniclerTeam";
+pub async fn load(id: Uuid, at: DateTime<Utc>) -> Result<Option<Team>> {
+    chronicler::load("team", id, at).await
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct Team {
-    pub(crate) full_name: String,
-    pub(crate) nickname: String,
-    pub(crate) shorthand: String,
-    pub(crate) emoji: String,
-    pub(crate) lineup: Vec<Uuid>,
+pub struct Team {
+    pub full_name: String,
+    pub nickname: String,
+    pub shorthand: String,
+    #[serde(deserialize_with = "deserialize_emoji")]
+    pub emoji: String,
+    pub lineup: Vec<Uuid>,
 }
 
-pub(crate) async fn load_team(db: &Db, team_id: Uuid, at: DateTime<Utc>) -> Result<Team> {
-    Ok(
-        if let Some(cached) = db
-            .cache_load(CACHE_KIND, team_id.to_string(), Some(at))
-            .await?
-        {
-            serde_json::from_slice(&cached)?
-        } else {
-            let response = CLIENT
-                .get(format!(
-                    "{}/v2/entities?type=Team&id={}&at={}",
-                    CHRONICLER_BASE,
-                    team_id,
-                    at.to_rfc3339_opts(SecondsFormat::AutoSi, true),
-                ))
-                .send()
-                .await?;
-            let response_time: DateTime<Utc> = DateTime::parse_from_rfc2822(
-                response
-                    .headers()
-                    .get("date")
-                    .context("no date header in response")?
-                    .to_str()?,
-            )?
-            .into();
-            let versions: Versions<Box<RawValue>> = response.json().await?;
-            let version = versions
-                .items
-                .into_iter()
-                .next()
-                .with_context(|| format!("team id {} not found", team_id))?;
-            let team = serde_json::from_str(version.data.get())?;
-            db.cache_store(
-                CACHE_KIND,
-                team_id.to_string(),
-                version.data.get().as_bytes(),
-                Some(Range {
-                    start: version.valid_from,
-                    end: version.valid_to.unwrap_or(response_time),
-                }),
-            )
-            .await?;
-            team
-        },
-    )
+fn deserialize_emoji<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    Ok(s.strip_prefix("0x")
+        .and_then(|hex| u32::from_str_radix(hex, 16).ok())
+        .and_then(|s| char::try_from(s).ok())
+        .map(String::from)
+        .unwrap_or(s))
 }

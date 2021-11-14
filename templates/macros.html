@@ -1,0 +1,42 @@
+<!-- prettier-ignore -->
+{% macro cellspacing() %}
+{% if loop.first %}
+pr-2
+{% else %}
+border-l border-gray-300 dark:border-gray-700
+{% if loop.last %}
+pl-2
+{% else %}
+px-2
+{% endif %}
+{% endif %}
+{% endmacro %}
+
+{% macro table(table, class) %}
+<div class="w-full max-w-full overflow-x-scroll">
+  <table class="whitespace-nowrap {{ class }}">
+    <tr class="text-xs md:text-sm">
+      {% for value in table.header %}
+      <th class="{% call cellspacing() %} {{ table.col_class[loop.index0] }}">
+        {% let abbr = table.abbr[loop.index0] %}
+        <!-- prettier-ignore -->
+        {% if abbr.is_empty() %}
+        {{ value }}
+        {% else %}
+        <abbr title="{{ value }}">{{ abbr }}</abbr>
+        {% endif %}
+      </th>
+      {% endfor %}
+    </tr>
+    {% for (row, class) in table.rows %}
+    <tr class="hover:bg-yellow-100 dark:hover:bg-yellow-900">
+      {% for value in row %}
+      <td class="{% call cellspacing() %} {{ table.col_class[loop.index0] }} {% if loop.first %}{{ class }}{% endif %}">
+        {{ value }}
+      </td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endmacro %}

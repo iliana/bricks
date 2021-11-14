@@ -3,10 +3,7 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 #[allow(unstable_name_collisions)]
-pub(crate) fn box_names(
-    names: &HashMap<Uuid, String>,
-    first_initial: bool,
-) -> HashMap<Uuid, String> {
+pub fn box_names(names: &HashMap<Uuid, String>, first_initial: bool) -> HashMap<Uuid, String> {
     let mut new_names: HashMap<Uuid, String> = HashMap::new();
     let mut counts: HashMap<String, usize> = HashMap::new();
 

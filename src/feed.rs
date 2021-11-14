@@ -1,55 +1,73 @@
-use crate::{db::Db, CLIENT, SACHET_BASE};
-use anyhow::{ensure, Result};
+use crate::{CLIENT, DB, SACHET_BASE};
+use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use uuid::Uuid;
 
-const CACHE_KIND: &str = "Sachet";
+pub async fn load(game_id: Uuid) -> Result<Vec<GameEvent>> {
+    let tree = DB.open_tree("cache_sachet_v1")?;
+    if let Some(data) = tree.get(game_id.as_bytes())? {
+        Ok(serde_json::from_slice(&data)?)
+    } else {
+        let data = CLIENT
+            .get(format!("{}/packets?id={}", SACHET_BASE, game_id))
+            .send()
+            .await?
+            .text()
+            .await?;
+        let events = serde_json::from_str(&data)?;
+        tree.insert(game_id.as_bytes(), data.into_bytes())?;
+        Ok(events)
+    }
+}
 
 #[derive(Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct GameEvent {
-    // must be first to verify ordering
-    pub(crate) metadata: GameEventMetadata,
+pub struct GameEvent {
+    // must be first to sort
+    pub metadata: GameEventMetadata,
 
-    pub(crate) id: Uuid,
-    pub(crate) player_tags: Vec<Uuid>,
-    pub(crate) team_tags: Vec<Uuid>,
-    pub(crate) created: DateTime<Utc>,
+    pub id: Uuid,
+    pub player_tags: Vec<Uuid>,
+    pub team_tags: Vec<Uuid>,
+    pub created: DateTime<Utc>,
+    pub day: u16,
+    pub season: u16,
     #[serde(rename = "type")]
-    pub(crate) ty: u16,
-    pub(crate) description: String,
+    pub ty: u16,
+    pub description: String,
+
+    pub base_runners: Option<Vec<Uuid>>,
+    pub bases_occupied: Option<Vec<u16>>,
 
     #[serde(flatten)]
-    pub(crate) pitcher_data: Option<PitcherData>,
-    pub(crate) base_runners: Option<Vec<Uuid>>,
-    pub(crate) bases_occupied: Option<Vec<u16>>,
+    pub pitcher_data: Option<PitcherData>,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct GameEventMetadata {
-    // play and sub_play must be first to verify ordering
-    pub(crate) play: u16,
-    pub(crate) sub_play: u16,
-    pub(crate) sibling_ids: Vec<Uuid>,
+pub struct GameEventMetadata {
+    // play and sub_play must be first to sort
+    pub play: u16,
+    pub sub_play: u16,
+    pub sibling_ids: Vec<Uuid>,
 
     #[serde(flatten)]
-    pub(crate) extra: Option<ExtraData>,
+    pub extra: Option<ExtraData>,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct PitcherData {
-    pub(crate) away_pitcher: Uuid,
-    pub(crate) away_pitcher_name: String,
-    pub(crate) home_pitcher: Uuid,
-    pub(crate) home_pitcher_name: String,
+pub struct PitcherData {
+    pub away_pitcher: Uuid,
+    pub away_pitcher_name: String,
+    pub home_pitcher: Uuid,
+    pub home_pitcher_name: String,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(untagged)]
-pub(crate) enum ExtraData {
+pub enum ExtraData {
     Trade(PlayerTradeData),
     Swap(PlayerSwapData),
     Incineration(IncinerationReplacementData),
@@ -57,66 +75,30 @@ pub(crate) enum ExtraData {
 
 #[derive(Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct PlayerTradeData {
-    pub(crate) a_player_id: Uuid,
-    pub(crate) a_player_name: String,
-    pub(crate) a_team_id: Uuid,
-    pub(crate) b_player_id: Uuid,
-    pub(crate) b_player_name: String,
-    pub(crate) b_team_id: Uuid,
+pub struct PlayerTradeData {
+    pub a_player_id: Uuid,
+    pub a_player_name: String,
+    pub a_team_id: Uuid,
+    pub b_player_id: Uuid,
+    pub b_player_name: String,
+    pub b_team_id: Uuid,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct PlayerSwapData {
-    pub(crate) a_player_id: Uuid,
-    pub(crate) a_player_name: String,
-    pub(crate) b_player_id: Uuid,
-    pub(crate) b_player_name: String,
-    pub(crate) team_id: Uuid,
+pub struct PlayerSwapData {
+    pub a_player_id: Uuid,
+    pub a_player_name: String,
+    pub b_player_id: Uuid,
+    pub b_player_name: String,
+    pub team_id: Uuid,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct IncinerationReplacementData {
-    pub(crate) in_player_id: Uuid,
-    pub(crate) in_player_name: String,
-    pub(crate) out_player_id: Uuid,
-    pub(crate) team_id: Uuid,
-}
-
-impl GameEvent {
-    pub(crate) fn risp(&self) -> bool {
-        self.bases_occupied.iter().flatten().any(|base| *base >= 1)
-    }
-}
-
-pub(crate) async fn load_game_feed(db: &Db, game_id: Uuid) -> Result<Vec<GameEvent>> {
-    let (raw_value, from_cache) = match db.cache_load(CACHE_KIND, game_id.to_string(), None).await?
-    {
-        None => (
-            CLIENT
-                .get(format!("{}/packets?id={}", SACHET_BASE, game_id))
-                .send()
-                .await?
-                .bytes()
-                .await?,
-            false,
-        ),
-        Some(cached) => (cached.into(), true),
-    };
-
-    let mut value: Vec<GameEvent> = serde_json::from_slice(&raw_value)?;
-    value.sort_unstable();
-    ensure!(
-        value.last().map(|event| event.ty) == Some(216),
-        "game not over"
-    );
-
-    if !from_cache {
-        db.cache_store(CACHE_KIND, game_id.to_string(), &raw_value, None)
-            .await?;
-    }
-
-    Ok(value)
+pub struct IncinerationReplacementData {
+    pub in_player_id: Uuid,
+    pub in_player_name: String,
+    pub out_player_id: Uuid,
+    pub team_id: Uuid,
 }

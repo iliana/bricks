@@ -1,151 +1,96 @@
-{% extends "base.html" %}
+{% import "macros.html" as macros %} {% extends "base.html" %}
 
 <!-- prettier-ignore -->
-{% macro stat_lists(lists) %}
-{% for (abbr, title, list) in lists %}
-<p>
-  {% if !abbr.is_empty() %}<abbr class="font-bold" title="{{ title }}">{{ abbr }}</abbr>{% else %}<span
-    class="font-bold"
-    >{{ title }}</span
-  >{% endif %}: {{ list }}.
-</p>
-{% endfor %}
+{% macro lines(lines, heading) %}
+{% if !lines.is_empty() %}
+<div>
+  {% if !heading.is_empty() %}
+  <p class="text-base md:text-lg font-bold">{{ heading }}</p>
+  <!-- prettier-ignore -->
+  {% endif %}
+  {% for line in lines %}
+  <p>
+    {% if line.abbr.is_empty() %}
+    <span class="font-bold">{{ line.title }}</span>:
+    <!-- prettier-ignore -->
+    {% else %}
+    <abbr class="font-bold" title="{{ line.title }}">{{ line.abbr }}</abbr>:
+    <!-- prettier-ignore -->
+    {% endif %}
+    {{ line.data }}.
+  </p>
+  {% endfor %}
+</div>
 <!-- prettier-ignore -->
+{% endif %}
 {% endmacro %}
 
+<!-- prettier-ignore -->
 {% block title %}
-{{ stats.away.name }} {{ stats.away.runs() }}, {{ stats.home.name }} {{ stats.home.runs() }}
+{{ game.away.name }} {{ game.away.runs() }}, {{ game.home.name }} {{ game.home.runs() }}
 {% endblock %}
 
 {% block content %}
 <h1 class="text-center">
   <span class="lg:hidden">
-    {{ stats.away.nickname }} {{ stats.away.runs() }}, {{ stats.home.nickname }} {{ stats.home.runs() }}
+    {{ game.away.nickname }} {{ game.away.runs() }}, {{ game.home.nickname }} {{ game.home.runs() }}
   </span>
   <span class="hidden lg:inline">
-    {{ stats.away.name }} {{ stats.away.runs() }}, {{ stats.home.name }} {{ stats.home.runs() }}
+    {{ game.away.name }} {{ game.away.runs() }}, {{ game.home.name }} {{ game.home.runs() }}
   </span>
 </h1>
 <p class="text-center font-semibold text-base md:text-lg -mt-3 md:-mt-3.5 lg:-mt-4">
-  {{ era }}, Season {{ season }}, Day {{ day }}
+  {{ era_name }}, Season {{ game.season + 1 }}, Day {{ game.day + 1 }}
 </p>
 
 <div class="w-full max-w-full overflow-x-scroll my-4 md:my-5 lg:my-6">
   <table class="mx-auto whitespace-nowrap">
     <tr class="text-sm">
       <td></td>
-      {% for (inning, _) in stats.away.inning_run_totals %}
-      <th class="w-8 px-1">{{ inning }}</th>
+      {% for (inning, _) in game.away.inning_runs %}
+      <th class="w-6 px-1">{{ inning }}</th>
       {% endfor %}
-      <th class="w-8 px-1"><abbr title="Runs">R</abbr></th>
-      <th class="w-8 px-1"><abbr title="Hits">H</abbr></th>
+      <th class="w-6 px-1"><abbr title="Runs">R</abbr></th>
+      <th class="w-6 pl-1"><abbr title="Hits">H</abbr></th>
     </tr>
-    {% for team in stats %}
+    {% for team in game %}
     <tr>
       <th class="text-left pr-2">
-        <span class="pr-2">{{ team.emoji | emoji }}</span>
+        <span class="pr-2">{{ team.emoji }}</span>
         <abbr title="{{ team.name }}">{{ team.shorthand }}</abbr>
       </th>
-      {% for (_, runs) in team.inning_run_totals %}
+      {% for (_, runs) in team.inning_runs %}
       <td class="text-center px-1">{{ runs }}</td>
       {% endfor %}
       <!-- prettier-ignore -->
-      {% if team.inning_run_totals.len() < stats.away.inning_run_totals.len() %}
+      {% if team.inning_runs.len() < game.away.inning_runs.len() %}
       <td class="text-center px-1">×</td>
       {% endif %}
       <td class="text-center font-bold px-1">{{ team.runs() }}</td>
-      <td class="text-center font-bold pl-1">{{ team.totals.hits() }}</td>
+      <td class="text-center font-bold pl-1">{{ team.hits() }}</td>
     </tr>
     {% endfor %}
   </table>
 </div>
 
 <div class="flex flex-col lg:flex-row gap-4 lg:gap-16 justify-center my-4">
-  {% for team in stats %}
+  {% for i in 0..2 %}
   <div class="lg:w-1/2 space-y-4">
-    <div class="w-full max-w-full overflow-x-scroll">
-      <table class="w-full leading-loose whitespace-nowrap tabular-nums">
-        <tr class="text-sm">
-          <th class="text-left">Batters – <abbr title="{{ team.name }}">{{ team.shorthand }}</abbr></th>
-          <th class="w-10 xl:w-12 pl-2 text-right"><abbr title="At Bats">AB</abbr></th>
-          <th class="w-10 xl:w-12 pl-2 text-right"><abbr title="Runs">R</abbr></th>
-          <th class="w-10 xl:w-12 pl-2 text-right"><abbr title="Hits">H</abbr></th>
-          <th class="w-10 xl:w-12 pl-2 text-right"><abbr title="Runs Batted In">RBI</abbr></th>
-          <th class="w-10 xl:w-12 pl-2 text-right"><abbr title="Bases on Balls (Walks)">BB</abbr></th>
-          <th class="w-10 xl:w-12 pl-2 text-right"><abbr title="Strikeouts">SO</abbr></th>
-          <th class="w-10 xl:w-12 pl-2 text-right"><abbr title="Left on Base">LOB</abbr></th>
-        </tr>
-        {% for row in team.lineup %}{% for player in row %}
-        <tr class="hover:bg-yellow-100 dark:hover:bg-yellow-900">
-          <td class="{% if !loop.first %}pl-4{% endif %}">
-            {{ box_names.get(player.clone()).map(String::as_str).unwrap_or_default() }}
-          </td>
-          {% let player_stats = team.player_stats(player) %}
-          <td class="pl-2 text-right">{{ player_stats.at_bats }}</td>
-          <td class="pl-2 text-right">{{ player_stats.runs }}</td>
-          <td class="pl-2 text-right">{{ player_stats.hits() }}</td>
-          <td class="pl-2 text-right">{{ player_stats.runs_batted_in }}</td>
-          <td class="pl-2 text-right">{{ player_stats.walks }}</td>
-          <td class="pl-2 text-right">{{ player_stats.strike_outs }}</td>
-          <td class="pl-2 text-right">{{ player_stats.left_on_base }}</td>
-        </tr>
-        {% endfor %}{% endfor %}
-      </table>
-    </div>
-
-    {% let batting_lists = team.box_batting_lists(short_box_names) %}
     <!-- prettier-ignore -->
-    {% if !batting_lists.is_empty() %}
-    <div>
-      <p class="text-lg font-bold">Batting</p>
-      {% call stat_lists(batting_lists) %}
-    </div>
-    {% endif %}
-    <!-- prettier-ignore -->
-
-    {% let baserunning_lists = team.box_baserunning_lists(short_box_names) %}
-    <!-- prettier-ignore -->
-    {% if !baserunning_lists.is_empty() %}
-    <div>
-      <p class="text-lg font-bold">Baserunning</p>
-      {% call stat_lists(baserunning_lists) %}
-    </div>
-    {% endif %}
+    {% call macros::table(batters_tables[i], "w-full leading-loose tabular-nums") %}
+    {% call lines(batting_lines[i], "Batting") %}
+    {% call lines(baserunning_lines[i], "Baserunning") %}
   </div>
   {% endfor %}
 </div>
 
 <div class="flex flex-col lg:flex-row gap-4 lg:gap-16 justify-center my-4">
-  {% for team in stats %}
+  {% for i in 0..2 %}
   <div class="lg:w-1/2 space-y-4">
-    <div class="w-full max-w-full overflow-x-scroll">
-      <table class="w-full leading-loose whitespace-nowrap tabular-nums">
-        <tr class="text-sm">
-          <th class="text-left">Pitchers – <abbr title="{{ team.name }}">{{ team.shorthand }}</abbr></th>
-          <th class="w-10 xl:w-12 pl-2 text-right"><abbr title="Innings Pitched">IP</abbr></th>
-          <th class="w-10 xl:w-12 pl-2 text-right"><abbr title="Hits Allowed">H</abbr></th>
-          <th class="w-10 xl:w-12 pl-2 text-right"><abbr title="Runs Allowed">R</abbr></th>
-          <th class="w-10 xl:w-12 pl-2 text-right"><abbr title="Bases on Balls (Walks)">BB</abbr></th>
-          <th class="w-10 xl:w-12 pl-2 text-right"><abbr title="Strikeouts">SO</abbr></th>
-          <th class="w-10 xl:w-12 pl-2 text-right"><abbr title="Home Runs Allowed">HR</abbr></th>
-        </tr>
-        {% for player in team.pitchers %}
-        <tr class="hover:bg-yellow-100 dark:hover:bg-yellow-900">
-          <td>{{ box_names.get(player.clone()).map(String::as_str).unwrap_or_default() }}</td>
-          {% let player_stats = team.player_stats(player) %}
-          <td class="pl-2 text-right">{{ player_stats.innings_pitched() }}</td>
-          <td class="pl-2 text-right">{{ player_stats.hits_allowed }}</td>
-          <td class="pl-2 text-right">{{ player_stats.earned_runs }}</td>
-          <td class="pl-2 text-right">{{ player_stats.walks_issued }}</td>
-          <td class="pl-2 text-right">{{ player_stats.struck_outs }}</td>
-          <td class="pl-2 text-right">{{ player_stats.home_runs_allowed }}</td>
-        </tr>
-        {% endfor %}
-      </table>
-    </div>
+    {% call macros::table(pitchers_tables[i], "w-full leading-loose tabular-nums") %}
   </div>
   {% endfor %}
 </div>
 
-<div class="my-4">{% call stat_lists(stats.box_pitching_lists(short_box_names)) %}</div>
+<div class="my-4">{% call lines(end_lines, "") %}</div>
 {% endblock %}

@@ -1,158 +1,141 @@
 mod chronicler;
-mod db;
+mod debug;
 mod feed;
-mod filters;
 mod game;
 mod names;
-mod player;
+mod routes;
 mod schedule;
 mod seasons;
-mod stats;
+mod state;
+mod table;
 mod team;
-mod today;
 
-use crate::db::Db;
-use crate::seasons::{Season, SIM_NAMES};
-use anyhow::Context;
+use anyhow::{bail, Context, Result};
 use reqwest::Client;
 use rocket::fairing::AdHoc;
-use rocket::http::ContentType;
 use rocket::tokio::time::sleep;
-use rocket::{get, launch, routes, tokio, Orbit, Rocket};
+use rocket::{launch, routes, tokio};
+use serde::Deserialize;
+use sled::Db;
 use std::time::Duration;
-
-type ResponseResult<T> = std::result::Result<T, rocket::response::Debug<anyhow::Error>>;
+use uuid::Uuid;
 
 const API_BASE: &str = "https://api.blaseball.com";
-const CONFIGS_BASE: &str = "https://blaseball-configs.s3.us-west-2.amazonaws.com";
 const CHRONICLER_BASE: &str = "https://api.sibr.dev/chronicler";
+const CONFIGS_BASE: &str = "https://blaseball-configs.s3.us-west-2.amazonaws.com";
 const SACHET_BASE: &str = "https://api.sibr.dev/eventually/sachet";
 
 lazy_static::lazy_static! {
+    static ref DB: Db = open_db().unwrap();
     static ref CLIENT: Client = Client::builder()
         .user_agent("bricks/0.0 (iliana@sibr.dev)")
         .build()
         .unwrap();
 }
 
-trait ResultExt<T, E> {
-    fn log_err(self) -> Option<T>;
-}
-
-impl<T, E: std::fmt::Debug> ResultExt<T, E> for Result<T, E> {
-    fn log_err(self) -> Option<T> {
-        match self {
+macro_rules! log_err {
+    ($expr:expr) => {
+        match $expr {
             Ok(v) => Some(v),
             Err(err) => {
-                log::error!("{:?}", err);
+                log::error!("{:#}", err);
                 None
             }
         }
+    };
+}
+
+fn open_db() -> Result<Db> {
+    let db = sled::Config::default()
+        .path(std::env::var_os("BRICKS_SLED_V1").context("BRICKS_SLED_V1 not set in environment")?)
+        .use_compression(true)
+        .open()?;
+    db.drop_tree("game_stats_v1")?;
+    db.drop_tree("player_stats_v1")?;
+    db.drop_tree("game_stats_v2")?;
+    db.drop_tree("player_stats_v2")?;
+    Ok(db)
+}
+
+async fn process_game_or_log(sim: &str, id: Uuid) {
+    match game::process(sim, id).await {
+        Ok(()) => log::info!("processed game {}", id),
+        Err(err) => log::error!("failed to process game {}: {:#}", id, err),
     }
 }
 
-#[get("/styles.css")]
-fn css() -> (ContentType, &'static [u8]) {
-    (
-        ContentType::CSS,
-        include_bytes!(concat!(env!("OUT_DIR"), "/styles.css")),
-    )
+async fn start_task() -> Result<()> {
+    seasons::load().await?;
+
+    for season in seasons::iter()? {
+        let (sim, season) = season?;
+        if sim == "thisidisstaticyo" || sim == "gamma4" {
+            continue;
+        }
+        if let Some(last_day) = schedule::last_day(&sim, season).await? {
+            for game_id in schedule::load(&sim, season, 0, last_day).await? {
+                process_game_or_log(&sim, game_id).await;
+            }
+        } else {
+            bail!("failed to get last day for sim {} season {}", sim, season);
+        }
+    }
+
+    Ok(())
 }
 
-async fn background(rocket: &Rocket<Orbit>) {
-    let db = Db::get_one(rocket).await.unwrap();
-    tokio::spawn(async move {
-        async fn process_season(db: &Db, season: Season, last_day_only: bool) {
-            let start = if last_day_only {
-                season.last_day.max(1) - 1
-            } else {
-                0
-            };
+async fn update_task() -> Result<()> {
+    #[derive(Debug, Deserialize)]
+    struct SimData {
+        #[serde(rename = "id")]
+        sim: String,
+        season: u16,
+        day: u16,
+    }
 
-            if let Some(schedule) =
-                schedule::load_schedule(db, &season.sim, season.season, start, season.last_day)
-                    .await
-                    .with_context(|| {
-                        format!(
-                            "failed to load schedule for {} season {}",
-                            season.sim, season.season
-                        )
-                    })
-                    .log_err()
-            {
-                for (day, game) in schedule {
-                    if !game::is_done(db, game).await.log_err().unwrap_or_default() {
-                        match game::process_game(db, &season.sim, season.season, day, game).await {
-                            Ok(()) => log::info!("processed game {}", game),
-                            Err(_) => log::warn!("failed to process game {}", game),
-                        }
-                    }
-                }
-            }
-        }
+    let now: SimData = CLIENT
+        .get(format!("{}/database/simulationData", API_BASE))
+        .send()
+        .await?
+        .json()
+        .await?;
+    if seasons::era_name(&now.sim, now.season)?.is_none() {
+        seasons::load().await?;
+    }
 
-        let seasons = seasons::load_seasons().await;
+    for game_id in schedule::load(&now.sim, now.season, now.day.max(1) - 1, now.day).await? {
+        process_game_or_log(&now.sim, game_id).await;
+    }
 
-        if std::env::var_os("DISABLE_TASKS").is_none() {
-            // load all past games
-            if let Some(seasons) = seasons.log_err() {
-                for season in seasons {
-                    process_season(&db, season, false).await;
-                }
-            }
-
-            // loop for loading new games
-            loop {
-                if let Some(today) = today::load_today()
-                    .await
-                    .context("failed to fetch simulationData")
-                    .log_err()
-                {
-                    if !SIM_NAMES
-                        .read()
-                        .await
-                        .contains_key(&(today.id.clone(), today.season + 1))
-                    {
-                        seasons::load_seasons().await.log_err();
-                    }
-
-                    process_season(
-                        &db,
-                        Season {
-                            sim: today.id,
-                            season: today.season,
-                            last_day: today.day,
-                        },
-                        true,
-                    )
-                    .await;
-                }
-
-                sleep(Duration::from_secs(120)).await;
-            }
-        }
-    });
+    Ok(())
 }
 
 #[launch]
 fn rocket() -> _ {
+    dotenv::dotenv().ok();
+    lazy_static::initialize(&DB);
+
     rocket::build()
         .mount(
             "/",
             routes![
-                css,
-                game::errors::errors,
-                game::routes::debug,
-                game::routes::game,
-                player::player,
+                routes::css,
+                routes::debug::debug,
+                routes::debug::errors,
+                routes::game::game,
             ],
         )
-        .attach(Db::fairing())
-        .attach(AdHoc::try_on_ignite(
-            "Database migrations",
-            db::run_migrations,
-        ))
-        .attach(AdHoc::on_liftoff("Background tasks", |rocket| {
-            Box::pin(background(rocket))
+        .attach(AdHoc::on_liftoff("Background task", |_rocket| {
+            Box::pin(async {
+                if std::env::var_os("DISABLE_TASKS").is_none() {
+                    tokio::spawn(async {
+                        log_err!(start_task().await);
+                        loop {
+                            log_err!(update_task().await);
+                            sleep(Duration::from_secs(120)).await;
+                        }
+                    });
+                }
+            })
         }))
 }
