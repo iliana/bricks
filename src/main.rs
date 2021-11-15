@@ -15,6 +15,7 @@ mod team;
 use anyhow::{bail, Result};
 use reqwest::Client;
 use rocket::fairing::AdHoc;
+use rocket::http::ContentType;
 use rocket::tokio::time::sleep;
 use rocket::{launch, routes, tokio};
 use serde::Deserialize;
@@ -170,6 +171,23 @@ fn rocket() -> _ {
                         log_err!(DB.drop_tree(tree));
                     }
                 });
+            })
+        }))
+        .attach(AdHoc::on_response("HTML minifier", |_, response| {
+            Box::pin(async move {
+                if response.content_type() == Some(ContentType::HTML) {
+                    if let Ok(html) = response.body_mut().take().to_bytes().await {
+                        let mini = minify_html::minify(
+                            &html,
+                            &minify_html::Cfg {
+                                keep_closing_tags: true,
+                                keep_html_and_head_opening_tags: true,
+                                ..minify_html::Cfg::spec_compliant()
+                            },
+                        );
+                        response.set_sized_body(mini.len(), std::io::Cursor::new(mini));
+                    }
+                }
             })
         }))
 }
