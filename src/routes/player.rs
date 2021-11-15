@@ -83,7 +83,7 @@ fn batting_table(
 
     let mut table = Table::new(
         [
-            ("Year", ""),
+            ("Season", ""),
             ("Team", ""),
             ("Games Played", "G"),
             ("Plate Appearances", "PA"),
@@ -164,7 +164,7 @@ fn pitching_table(
 
     let mut table = Table::new(
         [
-            ("Year", ""),
+            ("Season", ""),
             ("Team", ""),
             ("Earned Run Average", "ERA"),
             ("Games Played", "G"),
