@@ -34,6 +34,7 @@ const DB_MARKERS: &[&str] = &[
     "marker_combined_names",
     "marker_split_games_played",
     "marker_clear_on_marker",
+    "marker_force_emoji_representation",
 ];
 const CLEAR_ON_MARKER: &[&str] = &[summary::TREE];
 const OLD_TREES: &[&str] = &[

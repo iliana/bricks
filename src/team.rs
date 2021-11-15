@@ -27,6 +27,6 @@ where
     Ok(s.strip_prefix("0x")
         .and_then(|hex| u32::from_str_radix(hex, 16).ok())
         .and_then(|s| char::try_from(s).ok())
-        .map(String::from)
+        .map(|c| format!("{}\u{fe0f}", c))
         .unwrap_or(s))
 }
