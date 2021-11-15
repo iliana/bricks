@@ -25,7 +25,6 @@ fn load_player(id: Uuid) -> Result<Option<PlayerPage>> {
     if summary.is_empty() {
         return Ok(None);
     }
-    println!("{:#?}", summary);
 
     Ok(Some(PlayerPage {
         name,
