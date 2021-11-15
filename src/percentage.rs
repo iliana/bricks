@@ -31,7 +31,7 @@ impl<const PRECISION: u8> Display for Pct<PRECISION> {
             let mult_f = 10.0_f64.powi(PRECISION.into());
             let mult_i = 10_u64.pow(PRECISION.into());
             let frac = (self.0 * mult_f).round() as u64;
-            if frac >= mult_i {
+            if PRECISION < 3 || frac >= mult_i {
                 write!(f, "{}", frac / mult_i)?;
             }
             write!(f, ".{:0>width$}", frac % mult_i, width = PRECISION.into())
