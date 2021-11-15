@@ -12,31 +12,57 @@ px-2
 {% endif %}
 {% endmacro %}
 
+{% macro table_inner(table) %}
+<tr class="text-xs md:text-sm">
+  {% for value in table.header %}
+  <th class="{% call cellspacing() %} {{ table.col_class[loop.index0] }}">
+    {% let abbr = table.abbr[loop.index0] %}
+    <!-- prettier-ignore -->
+    {% if abbr.is_empty() %}
+    {{ value }}
+    {% else %}
+    <abbr title="{{ value }}">{{ abbr }}</abbr>
+    {% endif %}
+  </th>
+  {% endfor %}
+</tr>
+{% for (row, class) in table.rows %}
+<tr class="hover:bg-yellow-100 dark:hover:bg-yellow-900 {{ class }}">
+  {% for value in row %}
+  <td class="{% call cellspacing() %} {{ table.col_class[loop.index0] }}">{{ value }}</td>
+  {% endfor %}
+</tr>
+{% endfor %}
+<!-- prettier-ignore -->
+{% endmacro %}
+
 {% macro table(table, class) %}
 <div class="w-full max-w-full overflow-x-scroll">
   <table class="whitespace-nowrap {{ class }}">
-    <tr class="text-xs md:text-sm">
-      {% for value in table.header %}
-      <th class="{% call cellspacing() %} {{ table.col_class[loop.index0] }}">
-        {% let abbr = table.abbr[loop.index0] %}
-        <!-- prettier-ignore -->
-        {% if abbr.is_empty() %}
-        {{ value }}
-        {% else %}
-        <abbr title="{{ value }}">{{ abbr }}</abbr>
-        {% endif %}
-      </th>
+    {% call table_inner(table) %}
+  </table>
+</div>
+{% endmacro %}
+
+<!-- prettier-ignore -->
+{% macro totals_table(table, class, total_label) %}
+<div class="w-full max-w-full overflow-x-scroll">
+  <table class="whitespace-nowrap {{ class }}">
+    <!-- prettier-ignore -->
+    {% call table_inner(table) %}
+    {% let label_width = table.header.len() - table.totals.len() %}
+    <tr class="hover:bg-yellow-100 dark:hover:bg-yellow-900 font-bold">
+      {% if label_width > 0 %}
+      <th colspan="{{ label_width }}" class="text-left">{{ total_label }}</th>
+      {% endif %}
+      <!-- prettier-ignore -->
+      {% for i in 0..table.header.len() %}
+      {% if i >= label_width %}
+      <td class="{% call cellspacing() %} {{ table.col_class[loop.index0] }}">{{ table.totals[i - label_width] }}</td>
+      {% endif %}
+      <!-- prettier-ignore -->
       {% endfor %}
     </tr>
-    {% for (row, class) in table.rows %}
-    <tr class="hover:bg-yellow-100 dark:hover:bg-yellow-900">
-      {% for value in row %}
-      <td class="{% call cellspacing() %} {{ table.col_class[loop.index0] }} {% if loop.first %}{{ class }}{% endif %}">
-        {{ value }}
-      </td>
-      {% endfor %}
-    </tr>
-    {% endfor %}
   </table>
 </div>
 {% endmacro %}

@@ -1,6 +1,33 @@
+use crate::DB;
+use anyhow::Result;
 use itertools::Itertools;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
+
+pub const TREE: &str = "names_v1";
+
+pub fn player_name(id: Uuid) -> Result<Option<String>> {
+    Ok(match DB.open_tree(TREE)?.get(id.as_bytes())? {
+        Some(value) => Some(std::str::from_utf8(&value)?.to_owned()),
+        None => None,
+    })
+}
+
+pub fn team_name(id: Uuid) -> Result<Option<TeamName>> {
+    Ok(match DB.open_tree(TREE)?.get(id.as_bytes())? {
+        Some(value) => Some(serde_json::from_slice(&value)?),
+        None => None,
+    })
+}
+
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub struct TeamName {
+    pub name: String,
+    pub nickname: String,
+    pub shorthand: String,
+    pub emoji: String,
+}
 
 #[allow(unstable_name_collisions)]
 pub fn box_names(names: &HashMap<Uuid, String>, first_initial: bool) -> HashMap<Uuid, String> {

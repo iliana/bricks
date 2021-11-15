@@ -1,4 +1,5 @@
-use crate::{debug::LogEntry, state::State, DB};
+use crate::names::{self, TeamName};
+use crate::{debug::LogEntry, percentage::Pct, state::State, summary, DB};
 use anyhow::Result;
 use derive_more::{Add, AddAssign, Sum};
 use indexmap::IndexMap;
@@ -10,14 +11,13 @@ use uuid::Uuid;
 
 pub const DEBUG_TREE: &str = "debug_v1";
 pub const GAME_STATS_TREE: &str = "game_stats_v3";
-pub const PLAYER_STATS_TREE: &str = "player_stats_v3";
 
-pub async fn process(sim: &str, id: Uuid) -> Result<()> {
+pub async fn process(sim: &str, id: Uuid, force: bool) -> Result<bool> {
     let game_stats_tree = DB.open_tree(GAME_STATS_TREE)?;
-    if !game_stats_tree.contains_key(id.as_bytes())? {
+    if force || !game_stats_tree.contains_key(id.as_bytes())? {
         let debug_tree = DB.open_tree(DEBUG_TREE)?;
-        let player_stats_tree = DB.open_tree(PLAYER_STATS_TREE)?;
-        let player_name_tree = DB.open_tree("player_names_v1")?;
+        let summary_tree = DB.open_tree(summary::TREE)?;
+        let names_tree = DB.open_tree(names::TREE)?;
 
         let mut state = State::new(sim);
         let mut debug_log = Vec::new();
@@ -57,32 +57,20 @@ pub async fn process(sim: &str, id: Uuid) -> Result<()> {
         };
         debug_tree.insert(id.as_bytes(), serde_json::to_vec(&debug_log)?.as_slice())?;
 
-        (&game_stats_tree, &player_stats_tree, &player_name_tree).transaction(
-            |(game_stats_tree, player_stats_tree, player_name_tree)| {
+        (&game_stats_tree, &summary_tree, &names_tree).transaction(
+            |(game_stats_tree, summary_tree, names_tree)| {
                 for team in game.teams() {
+                    names_tree.insert(
+                        team.id.as_bytes(),
+                        serde_json::to_vec(&team.name)
+                            .map_err(ConflictableTransactionError::Abort)?,
+                    )?;
                     for (id, name) in &team.player_names {
-                        player_name_tree.insert(id.as_bytes(), name.as_bytes())?;
-                    }
-
-                    for (id, stats) in &team.stats {
-                        for key in [
-                            player_stats_key(team.id, *id, sim, game.season),
-                            player_stats_key(*id, team.id, sim, game.season),
-                        ] {
-                            let new = match player_stats_tree.get(&key)? {
-                                None => Stats::default(),
-                                Some(value) => serde_json::from_slice(&value)
-                                    .map_err(ConflictableTransactionError::Abort)?,
-                            } + *stats;
-                            player_stats_tree.insert(
-                                key.as_slice(),
-                                serde_json::to_vec(&new)
-                                    .map_err(ConflictableTransactionError::Abort)?
-                                    .as_slice(),
-                            )?;
-                        }
+                        names_tree.insert(id.as_bytes(), name.as_bytes())?;
                     }
                 }
+
+                summary::write_summary(summary_tree, &game)?;
 
                 game_stats_tree.insert(
                     id.as_bytes(),
@@ -94,18 +82,11 @@ pub async fn process(sim: &str, id: Uuid) -> Result<()> {
                 Ok(())
             },
         )?;
+
+        Ok(true)
+    } else {
+        Ok(false)
     }
-
-    Ok(())
-}
-
-fn player_stats_key(a: Uuid, b: Uuid, sim: &str, season: u16) -> Vec<u8> {
-    let mut key = Vec::new();
-    key.extend_from_slice(a.as_bytes());
-    key.extend_from_slice(b.as_bytes());
-    key.extend_from_slice(sim.as_bytes());
-    key.extend_from_slice(&season.to_be_bytes());
-    key
 }
 
 #[derive(Debug, Default, Deserialize, Serialize)]
@@ -139,10 +120,8 @@ impl<'a> IntoIterator for &'a Game {
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct Team {
     pub id: Uuid,
-    pub name: String,
-    pub nickname: String,
-    pub shorthand: String,
-    pub emoji: String,
+    #[serde(flatten)]
+    pub name: TeamName,
 
     pub player_names: HashMap<Uuid, String>,
     pub lineup: Vec<Vec<Uuid>>,
@@ -158,7 +137,7 @@ impl Team {
         self.inning_runs.values().sum()
     }
 
-    pub fn hits(&self) -> u16 {
+    pub fn hits(&self) -> u32 {
         self.stats.values().map(|s| s.hits()).sum()
     }
 
@@ -167,53 +146,118 @@ impl Team {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, Deserialize, Serialize, Add, AddAssign, Sum)]
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Add, AddAssign, Sum,
+)]
 pub struct Stats {
+    #[serde(default)]
+    pub games_batted: u32,
+    #[serde(default)]
+    pub games_pitched: u32,
+
     // Batting stats
-    pub plate_appearances: u16,
-    pub at_bats: u16,
-    pub at_bats_with_risp: u16,
-    pub hits_with_risp: u16,
-    pub singles: u16,
-    pub doubles: u16,
-    pub triples: u16,
-    pub home_runs: u16,
-    pub runs: u16,
-    pub runs_batted_in: u16,
-    pub sacrifice_hits: u16,
-    pub sacrifice_flies: u16,
-    pub stolen_bases: u16,
-    pub caught_stealing: u16,
-    pub strike_outs: u16,
-    pub double_plays_grounded_into: u16,
-    pub walks: u16,
+    pub plate_appearances: u32,
+    pub at_bats: u32,
+    pub at_bats_with_risp: u32,
+    pub hits_with_risp: u32,
+    pub singles: u32,
+    pub doubles: u32,
+    pub triples: u32,
+    pub home_runs: u32,
+    pub runs: u32,
+    pub runs_batted_in: u32,
+    pub sacrifice_hits: u32,
+    pub sacrifice_flies: u32,
+    pub stolen_bases: u32,
+    pub caught_stealing: u32,
+    pub strike_outs: u32,
+    pub double_plays_grounded_into: u32,
+    pub walks: u32,
     pub left_on_base: usize,
 
     // Pitching stats
-    pub batters_faced: u16,
-    pub outs_recorded: u16,
-    pub hits_allowed: u16,
-    pub home_runs_allowed: u16,
-    pub earned_runs: u16,
-    pub struck_outs: u16,
-    pub walks_issued: u16,
-    pub strikes_pitched: u16,
-    pub balls_pitched: u16,
-    pub flyouts_pitched: u16,
-    pub groundouts_pitched: u16,
+    pub batters_faced: u32,
+    pub outs_recorded: u32,
+    pub hits_allowed: u32,
+    pub home_runs_allowed: u32,
+    pub earned_runs: u32,
+    pub struck_outs: u32,
+    pub walks_issued: u32,
+    pub strikes_pitched: u32,
+    pub balls_pitched: u32,
+    pub flyouts_pitched: u32,
+    pub groundouts_pitched: u32,
 }
 
 impl Stats {
-    pub fn hits(&self) -> u16 {
+    pub fn is_batting(&self) -> bool {
+        self.plate_appearances > 0
+    }
+
+    pub fn is_pitching(&self) -> bool {
+        self.strikes_pitched + self.balls_pitched > 0
+    }
+
+    pub fn hits(&self) -> u32 {
         self.singles + self.doubles + self.triples + self.home_runs
     }
 
-    pub fn total_bases(&self) -> u16 {
+    pub fn batting_average(&self) -> Pct<3> {
+        Pct::new(self.hits(), self.at_bats)
+    }
+
+    pub fn on_base_percentage(&self) -> Pct<3> {
+        Pct::new(
+            self.hits() + self.walks,
+            self.at_bats + self.walks + self.sacrifice_flies,
+        )
+    }
+
+    pub fn slugging_percentage(&self) -> Pct<3> {
+        Pct::new(self.total_bases(), self.at_bats)
+    }
+
+    pub fn on_base_plus_slugging(&self) -> Pct<3> {
+        self.on_base_percentage() + self.slugging_percentage()
+    }
+
+    pub fn total_bases(&self) -> u32 {
         self.singles + 2 * self.doubles + 3 * self.triples + 4 * self.home_runs
+    }
+
+    pub fn earned_run_average(&self) -> Pct<2> {
+        Pct::new(self.earned_runs * 27, self.outs_recorded)
     }
 
     pub fn innings_pitched(&self) -> String {
         format!("{}.{}", self.outs_recorded / 3, self.outs_recorded % 3)
+    }
+
+    pub fn whip(&self) -> Pct<3> {
+        Pct::new(
+            (self.walks_issued + self.hits_allowed) * 3,
+            self.outs_recorded,
+        )
+    }
+
+    pub fn hits_per_9(&self) -> Pct<1> {
+        Pct::new(self.hits_allowed * 27, self.outs_recorded)
+    }
+
+    pub fn home_runs_per_9(&self) -> Pct<1> {
+        Pct::new(self.home_runs_allowed * 27, self.outs_recorded)
+    }
+
+    pub fn walks_per_9(&self) -> Pct<1> {
+        Pct::new(self.walks_issued * 27, self.outs_recorded)
+    }
+
+    pub fn struck_outs_per_9(&self) -> Pct<1> {
+        Pct::new(self.struck_outs * 27, self.outs_recorded)
+    }
+
+    pub fn struck_outs_walks_ratio(&self) -> Pct<2> {
+        Pct::new(self.struck_outs, self.walks_issued)
     }
 
     pub fn pitches_strikes(&self) -> String {

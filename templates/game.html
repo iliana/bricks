@@ -27,16 +27,16 @@
 
 <!-- prettier-ignore -->
 {% block title %}
-{{ game.away.name }} {{ game.away.runs() }}, {{ game.home.name }} {{ game.home.runs() }}
+{{ game.away.name.name }} {{ game.away.runs() }}, {{ game.home.name.name }} {{ game.home.runs() }}
 {% endblock %}
 
 {% block content %}
 <h1 class="text-center">
   <span class="lg:hidden">
-    {{ game.away.nickname }} {{ game.away.runs() }}, {{ game.home.nickname }} {{ game.home.runs() }}
+    {{ game.away.name.nickname }} {{ game.away.runs() }}, {{ game.home.name.nickname }} {{ game.home.runs() }}
   </span>
   <span class="hidden lg:inline">
-    {{ game.away.name }} {{ game.away.runs() }}, {{ game.home.name }} {{ game.home.runs() }}
+    {{ game.away.name.name }} {{ game.away.runs() }}, {{ game.home.name.name }} {{ game.home.runs() }}
   </span>
 </h1>
 <p class="text-center font-semibold text-base md:text-lg -mt-3 md:-mt-3.5 lg:-mt-4">
@@ -56,8 +56,8 @@
     {% for team in game %}
     <tr>
       <th class="text-left pr-2">
-        <span class="pr-2">{{ team.emoji }}</span>
-        <abbr title="{{ team.name }}">{{ team.shorthand }}</abbr>
+        <span class="pr-2">{{ team.name.emoji }}</span>
+        <abbr title="{{ team.name.name }}">{{ team.name.shorthand }}</abbr>
       </th>
       {% for (_, runs) in team.inning_runs %}
       <td class="text-center px-1">{{ runs }}</td>

@@ -80,9 +80,9 @@ struct GameFailedPage {
 fn batters_table(team: &Team, names: &HashMap<Uuid, String>) -> Table<8> {
     let mut table = Table {
         header: row![
-            format!("Batters \u{2013} {}", team.shorthand),
+            format!("Batters \u{2013} {}", team.name.shorthand),
             "At Bats",
-            "Runs",
+            "Runs Scored",
             "Hits",
             "Runs Batted In",
             "Bases on Balls (Walks)",
@@ -139,7 +139,7 @@ fn batters_table(team: &Team, names: &HashMap<Uuid, String>) -> Table<8> {
 fn pitchers_table(team: &Team, names: &HashMap<Uuid, String>) -> Table<7> {
     let mut table = Table {
         header: row![
-            format!("Pitchers \u{2013} {}", team.shorthand),
+            format!("Pitchers \u{2013} {}", team.name.shorthand),
             "Innings Pitched",
             "Hits Allowed",
             "Runs Allowed",
@@ -257,14 +257,14 @@ fn batting_lines(team: &Team, names: &HashMap<Uuid, String>) -> Vec<Line> {
         .stats
         .values()
         .map(|s| s.at_bats_with_risp)
-        .sum::<u16>();
+        .sum::<u32>();
     if ab_risp > 0 {
         lines.push(Line {
             title: "Team Hits with Runners in Scoring Position",
             abbr: "Team RISP",
             data: format!(
                 "{}-for-{}",
-                team.stats.values().map(|s| s.hits_with_risp).sum::<u16>(),
+                team.stats.values().map(|s| s.hits_with_risp).sum::<u32>(),
                 ab_risp
             ),
         });

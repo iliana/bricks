@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 use std::collections::BTreeMap;
 use uuid::Uuid;
-use zerocopy::{AsBytes, FromBytes};
 
 pub async fn load(
     sim: &str,
@@ -25,7 +24,7 @@ pub async fn load(
 
     let mut cached: BTreeMap<u16, Vec<Uuid>> = BTreeMap::new();
     for day in start_day..=end_day {
-        if let Some(value) = tree.get(&Key::build(sim, season, day))? {
+        if let Some(value) = tree.get(&build_key(sim, season, day))? {
             cached.insert(day, schedule_to_ids(serde_json::from_slice(&value)?));
         }
     }
@@ -53,7 +52,7 @@ pub async fn load(
         for (day, raw_schedule) in response {
             let schedule: Vec<Game> = serde_json::from_str(raw_schedule.get())?;
             if schedule.iter().all(|game| game.game_complete) {
-                tree.insert(&Key::build(sim, season, day), raw_schedule.get())?;
+                tree.insert(&build_key(sim, season, day), raw_schedule.get())?;
             }
             cached.insert(day, schedule_to_ids(schedule));
         }
@@ -77,20 +76,12 @@ struct Game {
     game_complete: bool,
 }
 
-#[derive(AsBytes, FromBytes)]
-#[repr(C)]
-struct Key {
-    season: u16,
-    day: u16,
-}
-
-impl Key {
-    fn build(sim: &str, season: u16, day: u16) -> Vec<u8> {
-        let mut key = Vec::with_capacity(sim.len() + std::mem::size_of::<Key>());
-        key.extend_from_slice(sim.as_bytes());
-        key.extend_from_slice(Key { season, day }.as_bytes());
-        key
-    }
+fn build_key(sim: &str, season: u16, day: u16) -> Vec<u8> {
+    let mut key = Vec::with_capacity(sim.len() + 2 * std::mem::size_of::<u16>());
+    key.extend_from_slice(sim.as_bytes());
+    key.extend_from_slice(&season.to_ne_bytes());
+    key.extend_from_slice(&day.to_ne_bytes());
+    key
 }
 
 pub async fn last_day(sim: &str, season: u16) -> Result<Option<u16>> {

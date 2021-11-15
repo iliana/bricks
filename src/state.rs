@@ -48,13 +48,13 @@ impl State {
     pub fn finish(self) -> Result<Game> {
         ensure!(self.game_finished, "game incomplete");
         self.ensure_pitchers_known()?;
-        let game = self.game;
-        for team in game.teams() {
+        let mut game = self.game;
+        for team in game.teams_mut() {
             ensure!(
                 team.stats
                     .values()
                     .map(|stats| stats.outs_recorded)
-                    .sum::<u16>()
+                    .sum::<u32>()
                     % 3
                     == 0,
                 "fractional total innings pitched"
@@ -67,6 +67,14 @@ impl State {
                 !team.player_names.contains_key(&Uuid::default()),
                 "placeholder pitcher ID present in player names"
             );
+            for stats in team.stats.values_mut() {
+                if stats.is_batting() {
+                    stats.games_batted += 1;
+                }
+                if stats.is_pitching() {
+                    stats.games_pitched += 1;
+                }
+            }
         }
         Ok(game)
     }
@@ -380,10 +388,10 @@ impl State {
             let data = team::load(team.id, event.created)
                 .await?
                 .context("no data for team")?;
-            team.name = data.full_name;
-            team.nickname = data.nickname;
-            team.shorthand = data.shorthand;
-            team.emoji = data.emoji;
+            team.name.name = data.full_name;
+            team.name.nickname = data.nickname;
+            team.name.shorthand = data.shorthand;
+            team.name.emoji = data.emoji;
             for player in data.lineup {
                 team.lineup.push(vec![player]);
             }
@@ -661,7 +669,7 @@ impl State {
 
     fn record_batter_event<F>(&mut self, f: F) -> Result<()>
     where
-        F: FnOnce(&mut Stats) -> &mut u16,
+        F: FnOnce(&mut Stats) -> &mut u32,
     {
         let batter = self.batter()?;
         *f(self.offense_stats(batter)) += 1;
@@ -670,7 +678,7 @@ impl State {
 
     fn record_runner_event<F>(&mut self, runner: Uuid, f: F) -> Result<()>
     where
-        F: FnOnce(&mut Stats) -> &mut u16,
+        F: FnOnce(&mut Stats) -> &mut u32,
     {
         *f(self.offense_stats(runner)) += 1;
         Ok(())
@@ -678,7 +686,7 @@ impl State {
 
     fn record_pitcher_event<F>(&mut self, f: F) -> Result<()>
     where
-        F: FnOnce(&mut Stats) -> &mut u16,
+        F: FnOnce(&mut Stats) -> &mut u32,
     {
         let pitcher = self.pitcher();
         *f(self.defense_stats(pitcher)) += 1;
