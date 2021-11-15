@@ -12,7 +12,7 @@
   }
 
   h2 {
-    @apply font-bold text-xl md:text-2xl lg:text-3xl my-4 md:my-5 lg:my-6;
+    @apply font-bold text-lg md:text-xl lg:text-2xl my-4 md:my-5 lg:my-6;
   }
 
   th,
