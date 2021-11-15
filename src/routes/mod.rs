@@ -15,3 +15,11 @@ pub fn css() -> (ContentType, &'static str) {
         include_str!(concat!(env!("OUT_DIR"), "/styles.css")),
     )
 }
+
+#[get("/brick.svg")]
+pub fn brick() -> (ContentType, &'static str) {
+    (
+        ContentType::SVG,
+        include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/brick.svg")),
+    )
+}

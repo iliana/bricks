@@ -147,6 +147,7 @@ fn rocket() -> _ {
         .mount(
             "/",
             routes![
+                routes::brick,
                 routes::css,
                 routes::debug::debug,
                 routes::debug::errors,
