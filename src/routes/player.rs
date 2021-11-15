@@ -106,7 +106,7 @@ fn batting_table(
             ("Sacrifice Hits", "SH"),
             ("Sacrifice Flies", "SF"),
         ],
-        "w-6 xl:w-8 text-right",
+        "text-right",
     );
     table.col_class[0] = "text-left";
     table.col_class[1] = "text-left";
@@ -181,7 +181,7 @@ fn pitching_table(
             ("Strikeouts per 9 Innings", "SO/9"),
             ("Strikeout-to-Walk Ratio", "SO/BB"),
         ],
-        "w-6 xl:w-8 text-right",
+        "text-right",
     );
     table.col_class[0] = "text-left";
     table.col_class[1] = "text-left";
