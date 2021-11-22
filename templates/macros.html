@@ -27,9 +27,9 @@ px-2
   {% endfor %}
 </tr>
 {% for row in table.rows %}
-<tr class="hover:bg-yellow-100 dark:hover:bg-yellow-900 {{ row.first_cell_class }}">
+<tr class="hover:bg-yellow-100 dark:hover:bg-yellow-900">
   {% for value in row.data %}
-  <td class="{% call cellspacing() %} {{ table.col_class[loop.index0] }}">
+  <td class="{% call cellspacing() %} {{ table.col_class[loop.index0] }} {% if loop.first %}{{ row.class }}{% endif %}">
     {% let href = row.href[loop.index0] %}{% if !href.is_empty() %}<a href="{{ href }}"
       >{% endif %}{{ value }}{% if !href.is_empty() %}</a
     >{% endif %}

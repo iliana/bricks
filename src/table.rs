@@ -51,9 +51,9 @@ where
         });
     }
 
-    pub fn set_first_cell_class(&mut self, class: &'static str) {
+    pub fn set_class(&mut self, class: &'static str) {
         if let Some(row) = self.rows.last_mut() {
-            row.first_cell_class = class;
+            row.class = class;
         }
     }
 
@@ -82,7 +82,7 @@ where
 pub struct Row<const N: usize> {
     pub data: [String; N],
     pub href: [String; N],
-    pub first_cell_class: &'static str,
+    pub class: &'static str,
 }
 
 impl<const N: usize> Default for Row<N>
@@ -93,7 +93,7 @@ where
         Row {
             data: Default::default(),
             href: Default::default(),
-            first_cell_class: "",
+            class: "",
         }
     }
 }

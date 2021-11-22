@@ -111,7 +111,7 @@ fn batters_table(team: &Team, names: &HashMap<Uuid, String>) -> Table<8> {
                         "",
                         "",
                     ]);
-                    table.set_first_cell_class(if i > 0 { "pl-4 italic" } else { "italic" });
+                    table.set_class(if i > 0 { "pl-4 italic" } else { "italic" });
                 } else {
                     table.push(row![
                         names.get(batter).cloned().unwrap_or_default(),
@@ -124,7 +124,7 @@ fn batters_table(team: &Team, names: &HashMap<Uuid, String>) -> Table<8> {
                         stats.left_on_base,
                     ]);
                     if i > 0 {
-                        table.set_first_cell_class("pl-4");
+                        table.set_class("pl-4");
                     }
                     seen.insert(*batter);
                     table.set_href(0, uri!(player(id = batter)));
