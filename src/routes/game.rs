@@ -1,12 +1,13 @@
 use crate::game::{Game, Stats, Team, DEBUG_TREE, GAME_STATS_TREE};
 use crate::names::box_names;
+use crate::routes::player::rocket_uri_macro_player;
 use crate::routes::ResponseResult;
 use crate::table::{row, Table};
 use crate::{seasons, DB};
 use anyhow::Result;
 use askama::Template;
-use rocket::get;
 use rocket::response::content::Html;
+use rocket::{get, uri};
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
@@ -100,34 +101,33 @@ fn batters_table(team: &Team, names: &HashMap<Uuid, String>) -> Table<8> {
         for (i, batter) in position.iter().enumerate() {
             if let Some(stats) = team.stats.get(batter) {
                 if seen.contains(batter) {
-                    table.rows.push((
-                        row![
-                            names.get(batter).cloned().unwrap_or_default(),
-                            "",
-                            "",
-                            "",
-                            "",
-                            "",
-                            "",
-                            "",
-                        ],
-                        if i > 0 { "pl-4 italic" } else { "italic" },
-                    ));
+                    table.push(row![
+                        names.get(batter).cloned().unwrap_or_default(),
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                    ]);
+                    table.set_first_cell_class(if i > 0 { "pl-4 italic" } else { "italic" });
                 } else {
-                    table.rows.push((
-                        row![
-                            names.get(batter).cloned().unwrap_or_default(),
-                            stats.at_bats,
-                            stats.runs,
-                            stats.hits(),
-                            stats.runs_batted_in,
-                            stats.walks,
-                            stats.strike_outs,
-                            stats.left_on_base,
-                        ],
-                        if i > 0 { "pl-4" } else { "" },
-                    ));
+                    table.push(row![
+                        names.get(batter).cloned().unwrap_or_default(),
+                        stats.at_bats,
+                        stats.runs,
+                        stats.hits(),
+                        stats.runs_batted_in,
+                        stats.walks,
+                        stats.strike_outs,
+                        stats.left_on_base,
+                    ]);
+                    if i > 0 {
+                        table.set_first_cell_class("pl-4");
+                    }
                     seen.insert(*batter);
+                    table.set_href(0, uri!(player(id = batter)));
                 }
             }
         }
@@ -155,18 +155,16 @@ fn pitchers_table(team: &Team, names: &HashMap<Uuid, String>) -> Table<7> {
 
     for pitcher in &team.pitchers {
         if let Some(stats) = team.stats.get(pitcher) {
-            table.rows.push((
-                row![
-                    names.get(pitcher).cloned().unwrap_or_default(),
-                    stats.innings_pitched(),
-                    stats.hits_allowed,
-                    stats.earned_runs,
-                    stats.walks_issued,
-                    stats.struck_outs,
-                    stats.home_runs_allowed,
-                ],
-                "",
-            ));
+            table.push(row![
+                names.get(pitcher).cloned().unwrap_or_default(),
+                stats.innings_pitched(),
+                stats.hits_allowed,
+                stats.earned_runs,
+                stats.walks_issued,
+                stats.struck_outs,
+                stats.home_runs_allowed,
+            ]);
+            table.set_href(0, uri!(player(id = pitcher)));
         }
     }
 

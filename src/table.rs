@@ -19,7 +19,7 @@ pub struct Table<const N: usize> {
     pub abbr: [String; N],
     pub col_class: [&'static str; N],
     // (cells, first cell class)
-    pub rows: Vec<([String; N], &'static str)>,
+    pub rows: Vec<Row<N>>,
 }
 
 impl<const N: usize> Table<N>
@@ -44,6 +44,25 @@ where
         }
     }
 
+    pub fn push(&mut self, data: [String; N]) {
+        self.rows.push(Row {
+            data,
+            ..Default::default()
+        });
+    }
+
+    pub fn set_first_cell_class(&mut self, class: &'static str) {
+        if let Some(row) = self.rows.last_mut() {
+            row.first_cell_class = class;
+        }
+    }
+
+    pub fn set_href(&mut self, index: usize, href: impl ToString) {
+        if let Some(row) = self.rows.last_mut() {
+            row.href[index] = href.to_string();
+        }
+    }
+
     pub fn with_totals<const S: usize>(self, totals: [impl ToString; S]) -> TotalsTable<N, S>
     where
         [String; S]: Default,
@@ -55,6 +74,26 @@ where
         TotalsTable {
             table: self,
             totals: string_totals,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Row<const N: usize> {
+    pub data: [String; N],
+    pub href: [String; N],
+    pub first_cell_class: &'static str,
+}
+
+impl<const N: usize> Default for Row<N>
+where
+    [String; N]: Default,
+{
+    fn default() -> Row<N> {
+        Row {
+            data: Default::default(),
+            href: Default::default(),
+            first_cell_class: "",
         }
     }
 }

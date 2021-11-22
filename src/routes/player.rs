@@ -126,7 +126,7 @@ fn batting_table(
         for (i, s) in build_row(&row.stats).into_iter().enumerate() {
             stats[i + BATTING_SKIP_COLS] = s;
         }
-        table.rows.push((stats, ""));
+        table.push(stats);
     }
 
     Ok(table.with_totals(build_row(&totals)))
@@ -201,7 +201,7 @@ fn pitching_table(
         for (i, s) in build_row(&row.stats).into_iter().enumerate() {
             stats[i + PITCHING_SKIP_COLS] = s;
         }
-        table.rows.push((stats, ""));
+        table.push(stats);
     }
 
     Ok(table.with_totals(build_row(&totals)))
