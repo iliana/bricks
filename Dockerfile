@@ -4,7 +4,7 @@ COPY . .
 RUN npm ci
 RUN npx postcss --env production styles.css -o styles.min.css
 
-FROM rust:1.56-buster as builder
+FROM rust:1.57-buster as builder
 WORKDIR /usr/src/bricks
 COPY . .
 COPY --from=css-builder /usr/src/bricks/styles.min.css styles.min.css
