@@ -335,6 +335,7 @@ fn end_lines(game: &Game, names: &HashMap<Uuid, String>) -> Vec<Line> {
 
 // =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=
 
+#[allow(clippy::large_enum_variant)]
 enum GameLoad {
     Ok(Game),
     Failed,
