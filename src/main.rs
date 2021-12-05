@@ -20,7 +20,7 @@ use rocket::tokio::time::sleep;
 use rocket::{launch, routes, tokio};
 use serde::Deserialize;
 use sled::Db;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use uuid::Uuid;
 
 const API_BASE: &str = "https://api.blaseball.com";
@@ -72,8 +72,9 @@ macro_rules! log_err {
 }
 
 async fn process_game_or_log(sim: &str, id: Uuid, force: bool) {
+    let start = Instant::now();
     match game::process(sim, id, force).await {
-        Ok(true) => log::info!("processed game {}", id),
+        Ok(true) => log::info!("processed game {} in {:?}", id, Instant::now() - start),
         Ok(false) => {}
         Err(err) => log::error!("failed to process game {}: {:#}", id, err),
     }
