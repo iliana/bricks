@@ -9,6 +9,13 @@ use sled::transaction::{ConflictableTransactionError, Transactional};
 use std::collections::{BTreeMap, HashMap};
 use uuid::Uuid;
 
+lazy_static::lazy_static! {
+    static ref DEBUG: bool = std::env::var("BRICKS_DEBUG")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(true);
+}
+
 pub const DEBUG_TREE: &str = "debug_v1";
 pub const GAME_STATS_TREE: &str = "game_stats_v3";
 
@@ -27,12 +34,14 @@ pub async fn process(sim: &str, id: Uuid, force: bool) -> Result<bool> {
         for event in feed {
             match state.push(&event).await {
                 Ok(()) => {
-                    let new = serde_json::to_value(&state)?;
-                    debug_log.push(LogEntry::Ok {
-                        description: event.description,
-                        patch: json_patch::diff(&old, &new),
-                    });
-                    old = new;
+                    if *DEBUG {
+                        let new = serde_json::to_value(&state)?;
+                        debug_log.push(LogEntry::Ok {
+                            description: event.description,
+                            patch: json_patch::diff(&old, &new),
+                        });
+                        old = new;
+                    }
                 }
                 Err(err) => {
                     debug_log.push(LogEntry::Err {
