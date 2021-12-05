@@ -75,13 +75,27 @@ pub fn write_summary(
 }
 
 pub fn player_summary(player_id: Uuid) -> Result<impl Iterator<Item = Result<Summary>>> {
-    load_summary(player_id, true)
+    load_summary(player_id, true, |_, _| true)
 }
 
-fn load_summary(
+pub fn team_summary(
+    team_id: Uuid,
+    sim: &str,
+    season: u16,
+) -> Result<impl Iterator<Item = Result<Summary>> + '_> {
+    load_summary(team_id, false, move |prefix, the_sim| {
+        the_sim == sim && prefix.season == season
+    })
+}
+
+fn load_summary<F>(
     scan_id: Uuid,
     scan_id_is_player: bool,
-) -> Result<impl Iterator<Item = Result<Summary>>> {
+    filter: F,
+) -> Result<impl Iterator<Item = Result<Summary>>>
+where
+    F: Fn(KeyPrefix, &str) -> bool,
+{
     Ok(DB
         .open_tree(TREE)?
         .scan_prefix(scan_id.as_bytes())
@@ -95,9 +109,12 @@ fn load_summary(
                     (prefix.other_id, prefix.scan_id)
                 };
                 let sim = std::str::from_utf8(sim)?;
+                if !filter(*prefix, sim) {
+                    return Ok(None);
+                }
                 let era = seasons::era_name(sim, prefix.season)?.unwrap_or_else(|| sim.to_owned());
                 let value: Value = serde_json::from_slice(&value)?;
-                Ok(Summary {
+                Ok(Some(Summary {
                     player_id: Uuid::from_bytes(player_id),
                     team_id: Uuid::from_bytes(team_id),
                     era,
@@ -105,9 +122,10 @@ fn load_summary(
                     is_postseason: prefix.is_postseason > 0,
                     stats: value.stats,
                     first_day: value.first_day,
-                })
+                }))
             })
-        }))
+        })
+        .filter_map(|res| res.transpose()))
 }
 
 #[derive(Clone, Copy, AsBytes, FromBytes)]

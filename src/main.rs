@@ -156,6 +156,7 @@ fn rocket() -> _ {
                 routes::debug::errors,
                 routes::game::game,
                 routes::player::player,
+                routes::team::team,
             ],
         )
         .attach(AdHoc::on_liftoff("Background tasks", |_rocket| {

@@ -1,6 +1,7 @@
 pub mod debug;
 pub mod game;
 pub mod player;
+pub mod team;
 
 use rocket::get;
 use rocket::http::ContentType;
