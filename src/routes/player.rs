@@ -21,10 +21,11 @@ fn load_player(id: Uuid) -> Result<Option<PlayerPage>> {
         None => return Ok(None),
     };
 
-    let summary = summary::player_summary(id)?.collect::<Result<Vec<_>>>()?;
+    let mut summary = summary::player_summary(id)?.collect::<Result<Vec<_>>>()?;
     if summary.is_empty() {
         return Ok(None);
     }
+    summary.sort_unstable();
 
     Ok(Some(PlayerPage {
         name,

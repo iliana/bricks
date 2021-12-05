@@ -1,6 +1,7 @@
 use crate::{CLIENT, CONFIGS_BASE, DB};
 use anyhow::{Context, Result};
 use serde::Deserialize;
+use std::cmp::Ordering;
 use zerocopy::{BigEndian, LayoutVerified, U16};
 
 const NAME_TREE: &str = "sim_names_v1";
@@ -63,4 +64,14 @@ pub fn era_name(sim: &str, season: u16) -> Result<Option<String>> {
         Some(v) => Ok(Some(std::str::from_utf8(&v)?.to_owned())),
         None => Ok(None),
     }
+}
+
+pub fn era_cmp(a: &str, b: &str) -> Result<Ordering> {
+    let tree = DB.open_tree(SORT_TREE)?;
+    Ok(match (tree.get(a)?, tree.get(b)?) {
+        (Some(index_a), Some(index_b)) => index_a.cmp(&index_b).then(a.cmp(b)),
+        (Some(_), _) => Ordering::Less,
+        (_, Some(_)) => Ordering::Greater,
+        (a, b) => a.cmp(&b),
+    })
 }

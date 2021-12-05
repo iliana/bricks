@@ -147,7 +147,19 @@ impl Team {
 }
 
 #[derive(
-    Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Add, AddAssign, Sum,
+    Debug,
+    Default,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Deserialize,
+    Serialize,
+    Add,
+    AddAssign,
+    Sum,
 )]
 pub struct Stats {
     #[serde(default)]

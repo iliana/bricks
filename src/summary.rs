@@ -1,11 +1,45 @@
 use crate::game::{Game, Stats};
 use crate::{seasons, DB};
 use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize};
 use sled::transaction::{
     ConflictableTransactionError, ConflictableTransactionResult, TransactionalTree,
 };
+use std::cmp::Ordering;
 use uuid::Uuid;
 use zerocopy::{AsBytes, FromBytes, LayoutVerified};
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct Summary {
+    pub era: String,
+    pub season: u16,
+    pub first_day: u16,
+    pub is_postseason: bool,
+    pub player_id: Uuid,
+    pub team_id: Uuid,
+    pub stats: Stats,
+}
+
+impl Ord for Summary {
+    fn cmp(&self, other: &Summary) -> Ordering {
+        crate::seasons::era_cmp(&self.era, &other.era)
+            .unwrap_or(Ordering::Equal)
+            .then(self.season.cmp(&other.season))
+            .then(self.first_day.cmp(&other.first_day))
+            .then(self.is_postseason.cmp(&other.is_postseason))
+            .then(self.player_id.cmp(&other.player_id))
+            .then(self.team_id.cmp(&other.team_id))
+            .then(self.stats.cmp(&other.stats))
+    }
+}
+
+impl PartialOrd for Summary {
+    fn partial_cmp(&self, other: &Summary) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+// =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=
 
 pub const TREE: &str = "summary_v1";
 
@@ -21,14 +55,15 @@ pub fn write_summary(
                 build_key(team.id, *id, &game.sim, game.season, is_postseason),
                 build_key(*id, team.id, &game.sim, game.season, is_postseason),
             ] {
-                let new = match tree.get(&key)? {
-                    None => Stats::default(),
+                let mut value = match tree.get(&key)? {
+                    None => Value::new(game.day),
                     Some(value) => serde_json::from_slice(&value)
                         .map_err(ConflictableTransactionError::Abort)?,
-                } + *stats;
+                };
+                value.stats += *stats;
                 tree.insert(
                     key.as_slice(),
-                    serde_json::to_vec(&new)
+                    serde_json::to_vec(&value)
                         .map_err(ConflictableTransactionError::Abort)?
                         .as_slice(),
                 )?;
@@ -61,26 +96,18 @@ fn load_summary(
                 };
                 let sim = std::str::from_utf8(sim)?;
                 let era = seasons::era_name(sim, prefix.season)?.unwrap_or_else(|| sim.to_owned());
+                let value: Value = serde_json::from_slice(&value)?;
                 Ok(Summary {
                     player_id: Uuid::from_bytes(player_id),
                     team_id: Uuid::from_bytes(team_id),
                     era,
                     season: prefix.season,
                     is_postseason: prefix.is_postseason > 0,
-                    stats: serde_json::from_slice(&value)?,
+                    stats: value.stats,
+                    first_day: value.first_day,
                 })
             })
         }))
-}
-
-#[derive(Debug)]
-pub struct Summary {
-    pub player_id: Uuid,
-    pub team_id: Uuid,
-    pub era: String,
-    pub season: u16,
-    pub is_postseason: bool,
-    pub stats: Stats,
 }
 
 #[derive(Clone, Copy, AsBytes, FromBytes)]
@@ -111,4 +138,19 @@ fn build_key(
     );
     key.extend_from_slice(sim.as_bytes());
     key
+}
+
+#[derive(Serialize, Deserialize)]
+struct Value {
+    stats: Stats,
+    first_day: u16,
+}
+
+impl Value {
+    fn new(first_day: u16) -> Value {
+        Value {
+            stats: Stats::default(),
+            first_day,
+        }
+    }
 }
