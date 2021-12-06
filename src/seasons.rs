@@ -66,7 +66,7 @@ pub fn era_name(sim: &str, season: u16) -> Result<Option<String>> {
     }
 }
 
-pub fn era_cmp(a: &str, b: &str) -> Result<Ordering> {
+pub fn sim_cmp(a: &str, b: &str) -> Result<Ordering> {
     let tree = DB.open_tree(SORT_TREE)?;
     Ok(match (tree.get(a)?, tree.get(b)?) {
         (Some(index_a), Some(index_b)) => index_a.cmp(&index_b).then(a.cmp(b)),

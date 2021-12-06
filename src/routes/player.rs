@@ -1,9 +1,10 @@
+use crate::routes::team::rocket_uri_macro_team;
 use crate::table::{Table, TotalsTable};
 use crate::{batting, names, pitching, routes::ResponseResult, summary};
 use anyhow::Result;
 use askama::Template;
-use rocket::get;
 use rocket::response::content::Html;
+use rocket::{get, uri};
 use uuid::Uuid;
 
 #[get("/player/<id>")]
@@ -35,6 +36,10 @@ fn load_player(id: Uuid) -> Result<Option<PlayerPage>> {
                     format!("{}/S{}", row.era, row.season + 1),
                     format!("{} {}", team.emoji, team.shorthand),
                 ]);
+                ident_table.set_href(
+                    1,
+                    uri!(team(id = row.team_id, sim = &row.sim, season = row.season)),
+                );
             }
             let stats_table = $tabler(summary.iter().filter($filter).map(|row| row.stats));
             TotalsTable {

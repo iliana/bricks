@@ -11,24 +11,26 @@ use zerocopy::{AsBytes, FromBytes, LayoutVerified};
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Summary {
-    pub era: String,
+    pub sim: String,
     pub season: u16,
     pub first_day: u16,
     pub is_postseason: bool,
     pub player_id: Uuid,
     pub team_id: Uuid,
+    pub era: String,
     pub stats: Stats,
 }
 
 impl Ord for Summary {
     fn cmp(&self, other: &Summary) -> Ordering {
-        crate::seasons::era_cmp(&self.era, &other.era)
+        crate::seasons::sim_cmp(&self.sim, &other.sim)
             .unwrap_or(Ordering::Equal)
             .then(self.season.cmp(&other.season))
             .then(self.first_day.cmp(&other.first_day))
             .then(self.is_postseason.cmp(&other.is_postseason))
             .then(self.player_id.cmp(&other.player_id))
             .then(self.team_id.cmp(&other.team_id))
+            .then(self.era.cmp(&other.era))
             .then(self.stats.cmp(&other.stats))
     }
 }
@@ -117,6 +119,7 @@ where
                 Ok(Some(Summary {
                     player_id: Uuid::from_bytes(player_id),
                     team_id: Uuid::from_bytes(team_id),
+                    sim: sim.to_owned(),
                     era,
                     season: prefix.season,
                     is_postseason: prefix.is_postseason > 0,
