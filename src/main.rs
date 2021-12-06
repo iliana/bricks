@@ -40,6 +40,7 @@ const DB_MARKERS: &[&str] = &[
     "marker_summary_first_day",
     "marker_shutouts_fixed",
     "marker_postseason_99_fix",
+    "marker_common_names_tree",
 ];
 const CLEAR_ON_MARKER: &[&str] = &[summary::TREE];
 const OLD_TREES: &[&str] = &[
@@ -157,6 +158,7 @@ fn rocket() -> _ {
                 routes::debug::debug,
                 routes::debug::errors,
                 routes::game::game,
+                routes::jump,
                 routes::player::player,
                 routes::team::team,
             ],

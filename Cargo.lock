@@ -239,6 +239,7 @@ dependencies = [
  "serde_json",
  "serde_urlencoded",
  "sled",
+ "twox-hash",
  "uuid",
  "zerocopy",
 ]
@@ -2029,6 +2030,17 @@ checksum = "c57ffb460d7c24cd6eda43694110189030a3d1dfe418416d9468fd1c1d290b47"
 dependencies = [
  "memchr",
  "unchecked-index",
+]
+
+[[package]]
+name = "twox-hash"
+version = "1.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1f559b464de2e2bdabcac6a210d12e9b5a5973c251e102c44c585c71d51bd78e"
+dependencies = [
+ "cfg-if",
+ "rand",
+ "static_assertions",
 ]
 
 [[package]]

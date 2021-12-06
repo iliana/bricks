@@ -4,7 +4,7 @@
 
 @layer base {
   a {
-    @apply underline;
+    @apply underline text-blue-800 dark:text-blue-200;
   }
 
   h1 {

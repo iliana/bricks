@@ -25,6 +25,7 @@ pub async fn process(sim: &str, id: Uuid, force: bool) -> Result<bool> {
         let debug_tree = DB.open_tree(DEBUG_TREE)?;
         let summary_tree = DB.open_tree(summary::TREE)?;
         let names_tree = DB.open_tree(names::TREE)?;
+        let common_names_tree = DB.open_tree(names::COMMON_TREE)?;
 
         let mut state = State::new(sim);
         let mut debug_log = Vec::new();
@@ -66,31 +67,43 @@ pub async fn process(sim: &str, id: Uuid, force: bool) -> Result<bool> {
         };
         debug_tree.insert(id.as_bytes(), serde_json::to_vec(&debug_log)?.as_slice())?;
 
-        (&game_stats_tree, &summary_tree, &names_tree).transaction(
-            |(game_stats_tree, summary_tree, names_tree)| {
-                for team in game.teams() {
-                    names_tree.insert(
-                        team.id.as_bytes(),
-                        serde_json::to_vec(&team.name)
-                            .map_err(ConflictableTransactionError::Abort)?,
-                    )?;
-                    for (id, name) in &team.player_names {
-                        names_tree.insert(id.as_bytes(), name.as_bytes())?;
+        (
+            &game_stats_tree,
+            &summary_tree,
+            &names_tree,
+            &common_names_tree,
+        )
+            .transaction(
+                |(game_stats_tree, summary_tree, names_tree, common_names_tree)| {
+                    for team in game.teams() {
+                        names_tree.insert(
+                            team.id.as_bytes(),
+                            serde_json::to_vec(&team.name)
+                                .map_err(ConflictableTransactionError::Abort)?,
+                        )?;
+                        for (id, name) in &team.player_names {
+                            names_tree.insert(id.as_bytes(), name.as_bytes())?;
+                        }
+
+                        let mut common_key = Vec::new();
+                        common_key.extend_from_slice(&team.name.emoji_hash().to_ne_bytes());
+                        common_key.extend_from_slice(&game.season.to_ne_bytes());
+                        common_key.extend_from_slice(game.sim.as_bytes());
+                        common_names_tree.insert(common_key, team.id.as_bytes())?;
                     }
-                }
 
-                summary::write_summary(summary_tree, &game)?;
+                    summary::write_summary(summary_tree, &game)?;
 
-                game_stats_tree.insert(
-                    id.as_bytes(),
-                    serde_json::to_vec(&game)
-                        .map_err(ConflictableTransactionError::Abort)?
-                        .as_slice(),
-                )?;
+                    game_stats_tree.insert(
+                        id.as_bytes(),
+                        serde_json::to_vec(&game)
+                            .map_err(ConflictableTransactionError::Abort)?
+                            .as_slice(),
+                    )?;
 
-                Ok(())
-            },
-        )?;
+                    Ok(())
+                },
+            )?;
 
         Ok(true)
     } else {

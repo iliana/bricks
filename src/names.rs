@@ -3,9 +3,11 @@ use anyhow::Result;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 use uuid::Uuid;
 
 pub const TREE: &str = "names_v1";
+pub const COMMON_TREE: &str = "common_names_v1";
 
 pub fn player_name(id: Uuid) -> Result<Option<String>> {
     Ok(match DB.open_tree(TREE)?.get(id.as_bytes())? {
@@ -27,6 +29,14 @@ pub struct TeamName {
     pub nickname: String,
     pub shorthand: String,
     pub emoji: String,
+}
+
+impl TeamName {
+    pub fn emoji_hash(&self) -> u64 {
+        let mut hasher = twox_hash::XxHash64::default();
+        self.emoji.hash(&mut hasher);
+        hasher.finish()
+    }
 }
 
 #[allow(unstable_name_collisions)]

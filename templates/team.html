@@ -6,6 +6,29 @@
 {% block content %}
 <h1>{{ team.emoji }} {{ team.name }}</h1>
 
+<form action="/jump" method="get">
+  <select autocomplete="off" class="form-select bg-transparent md:text-lg lg:text-xl" name="path">
+    {% for season in seasons %}
+    <option value="{{ season.path }}" {{ season.selected }}>{{ season.display }}</option>
+    {% endfor %}
+  </select>
+  <noscript>
+    <button class="form-input bg-transparent ml-4 md:text-lg lg:text-xl" type="submit">Go</button>
+  </noscript>
+
+  <script>
+    (() => {
+      const form = document.currentScript.parentElement;
+      window.addEventListener("pageshow", () => {
+        form.elements["path"].value = window.location.pathname;
+      });
+      form.querySelector("select").addEventListener("change", () => {
+        window.location.assign(form.elements["path"].value);
+      });
+    })();
+  </script>
+</form>
+
 <div class="space-y-4">
   {% if !standard_batting.rows.is_empty() %}
   <h2>Standard Batting</h2>
