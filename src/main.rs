@@ -44,14 +44,7 @@ const DB_MARKERS: &[&str] = &[
     "marker_common_names_tree",
 ];
 const CLEAR_ON_MARKER: &[&str] = &[summary::TREE];
-const OLD_TREES: &[&str] = &[
-    "game_stats_v1",
-    "game_stats_v2",
-    "player_names_v1",
-    "player_stats_v1",
-    "player_stats_v2",
-    "player_stats_v3",
-];
+const OLD_TREES: &[&str] = &[];
 
 lazy_static::lazy_static! {
     static ref DB: Db = sled::Config::default()
