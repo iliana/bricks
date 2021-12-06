@@ -1,6 +1,7 @@
 use crate::routes::player::rocket_uri_macro_player;
 use crate::table::{Table, TotalsTable};
-use crate::{batting, names, pitching, routes::ResponseResult, summary};
+use crate::{batting, pitching, routes::ResponseResult, summary};
+use crate::names::{self, TeamName};
 use anyhow::Result;
 use askama::Template;
 use rocket::response::content::Html;
@@ -17,7 +18,7 @@ pub fn team(id: Uuid, sim: &str, season: u16) -> ResponseResult<Option<Html<Stri
 
 fn load_team(id: Uuid, sim: &str, season: u16) -> Result<Option<TeamPage>> {
     let name = match names::team_name(id)? {
-        Some(name) => name.name,
+        Some(name) => name,
         None => return Ok(None),
     };
 
@@ -44,7 +45,7 @@ fn load_team(id: Uuid, sim: &str, season: u16) -> Result<Option<TeamPage>> {
     }
 
     Ok(Some(TeamPage {
-        name,
+        team: name,
         standard_batting: tabler!(batting::table, |s| !s.is_postseason && s.stats.is_batting()),
         postseason_batting: tabler!(batting::table, |s| s.is_postseason && s.stats.is_batting()),
         standard_pitching: tabler!(pitching::table, |s| !s.is_postseason
@@ -57,7 +58,7 @@ fn load_team(id: Uuid, sim: &str, season: u16) -> Result<Option<TeamPage>> {
 #[derive(Template)]
 #[template(path = "team.html")]
 struct TeamPage {
-    name: String,
+    team: TeamName,
     standard_batting: TotalsTable<{ batting::COLS + 1 }, { batting::COLS }>,
     postseason_batting: TotalsTable<{ batting::COLS + 1 }, { batting::COLS }>,
     standard_pitching: TotalsTable<{ pitching::COLS + 1 }, { pitching::COLS }>,
