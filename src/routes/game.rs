@@ -24,6 +24,7 @@ pub fn game(id: Uuid) -> ResponseResult<Option<Html<String>>> {
 
             Some(Html(
                 GamePage {
+                    id,
                     batters_tables: [
                         batters_table(&game.away, &names),
                         batters_table(&game.home, &names),
@@ -59,6 +60,7 @@ pub fn game(id: Uuid) -> ResponseResult<Option<Html<String>>> {
 #[derive(Template)]
 #[template(path = "game.html")]
 struct GamePage {
+    id: Uuid,
     game: Game,
     batters_tables: [Table<8>; 2],
     batting_lines: [Vec<Line>; 2],

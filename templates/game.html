@@ -42,6 +42,10 @@
 <p class="text-center font-semibold text-base md:text-lg -mt-3 md:-mt-3.5 lg:-mt-4">
   {{ game.season }}, Day {{ game.day + 1 }}
 </p>
+<ul class="text-center space-x-4 mt-0.5 md:mt-1">
+  <li class="inline"><a href="https://reblase.sibr.dev/game/{{ id }}">Reblase game log</a></li>
+  <li class="inline"><a href="https://www.blaseball.com/game/{{ id }}">Game feed</a></li>
+</ul>
 
 <div class="w-full max-w-full overflow-x-auto my-4 md:my-5 lg:my-6">
   <table class="mx-auto whitespace-nowrap">
@@ -56,8 +60,8 @@
     {% for team in game %}
     <tr>
       <th class="text-left pr-2">
-        <span class="pr-2">{{ team.name.emoji }}</span>
-        <abbr title="{{ team.name.name }}">{{ team.name.shorthand }}</abbr>
+        {{ team.name.emoji }}
+        <a href="/team/{{ team.id }}/{{ game.season.sim }}/{{ game.season.season }}">{{ team.name.shorthand }}</a>
       </th>
       {% for (_, runs) in team.inning_runs %}
       <td class="text-center px-1">{{ runs }}</td>
