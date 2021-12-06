@@ -81,7 +81,7 @@ async fn process_game_or_log(season: Season, id: Uuid, force: bool) {
 
 async fn start_task() -> Result<()> {
     let mut force = false;
-    for marker in DB_MARKERS {
+    for marker in DB_MARKERS.iter().rev() {
         if !DB.contains_key(marker)? {
             force = true;
             for tree in CLEAR_ON_MARKER {
