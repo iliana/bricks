@@ -92,6 +92,7 @@ fn batters_table(team: &Team, names: &HashMap<Uuid, String>) -> Table<8> {
         ],
         abbr: row!["", "AB", "R", "H", "RBI", "BB", "SO", "LOB"],
         col_class: ["w-6 xl:w-8 text-right"; 8],
+        sort_method: ["none"; 8],
         rows: Vec::new(),
     };
     table.col_class[0] = "text-left";
@@ -149,6 +150,7 @@ fn pitchers_table(team: &Team, names: &HashMap<Uuid, String>) -> Table<7> {
         ],
         abbr: row!["", "IP", "H", "R", "BB", "SO", "HR"],
         col_class: ["w-6 xl:w-8 text-right"; 7],
+        sort_method: ["none"; 7],
         rows: Vec::new(),
     };
     table.col_class[0] = "text-left";

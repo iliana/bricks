@@ -9,25 +9,25 @@
 <div class="space-y-4">
   {% if !standard_batting.rows.is_empty() %}
   <h2>Standard Batting</h2>
-  {% call macros::totals_table(standard_batting, "leading-loose tabular-nums", "Career") %}
+  {% call macros::totals_table(standard_batting, "sort leading-loose tabular-nums", "Career") %}
   <!-- prettier-ignore -->
   {% endif %}
 
   {% if !postseason_batting.rows.is_empty() %}
   <h2>Postseason Batting</h2>
-  {% call macros::totals_table(postseason_batting, "leading-loose tabular-nums", "Career") %}
+  {% call macros::totals_table(postseason_batting, "sort leading-loose tabular-nums", "Career") %}
   <!-- prettier-ignore -->
   {% endif %}
 
   {% if !standard_pitching.rows.is_empty() %}
   <h2>Standard Pitching</h2>
-  {% call macros::totals_table(standard_pitching, "leading-loose tabular-nums", "Career") %}
+  {% call macros::totals_table(standard_pitching, "sort leading-loose tabular-nums", "Career") %}
   <!-- prettier-ignore -->
   {% endif %}
 
   {% if !postseason_pitching.rows.is_empty() %}
   <h2>Postseason Pitching</h2>
-  {% call macros::totals_table(postseason_pitching, "leading-loose tabular-nums", "Career") %}
+  {% call macros::totals_table(postseason_pitching, "sort leading-loose tabular-nums", "Career") %}
   <!-- prettier-ignore -->
   {% endif %}
 </div>

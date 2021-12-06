@@ -29,6 +29,7 @@ pub fn table(iter: impl Iterator<Item = Stats>) -> TotalsTable<COLS, COLS> {
             ("Sacrifice Flies", "SF"),
         ],
         "text-right",
+        "number",
     );
 
     let mut totals = Stats::default();

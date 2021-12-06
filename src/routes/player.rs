@@ -29,7 +29,7 @@ fn load_player(id: Uuid) -> Result<Option<PlayerPage>> {
 
     macro_rules! tabler {
         ($tabler:expr, $filter:expr) => {{
-            let mut ident_table = Table::new([("Season", ""), ("Team", "")], "text-left");
+            let mut ident_table = Table::new([("Season", ""), ("Team", "")], "text-left", "none");
             for row in summary.iter().filter($filter) {
                 let team = names::team_name(row.team_id)?.unwrap_or_default();
                 ident_table.push([

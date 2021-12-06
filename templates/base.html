@@ -22,9 +22,39 @@
         </button>
       </div>
     </div>
-    <div class="container mx-auto my-4 px-4">{% block content %}{% endblock %}</div>
     <script>
-      {% include "dark-mode.js" %}
+      (() => {
+        const colorScheme = (() => {
+          try {
+            return window.localStorage.getItem("color-scheme");
+          } catch (e) {
+            return undefined;
+          }
+        })();
+
+        const root = document.documentElement;
+
+        if (
+          colorScheme === "dark" ||
+          (colorScheme !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches)
+        ) {
+          root.classList.add("dark");
+        }
+
+        document.querySelector("button#dark-mode-toggle").addEventListener("click", (event) => {
+          try {
+            window.localStorage.setItem("color-scheme", root.classList.toggle("dark") ? "dark" : "light");
+          } catch (e) {}
+        });
+      })();
+    </script>
+    <div class="container mx-auto my-4 px-4">{% block content %}{% endblock %}</div>
+    <script src="/tablesort.min.js"></script>
+    <script src="/tablesort.number.min.js"></script>
+    <script>
+      document.querySelectorAll("table.sort").forEach((table) => {
+        new Tablesort(table, { descending: true });
+      });
     </script>
   </body>
 </html>

@@ -161,6 +161,8 @@ fn rocket() -> _ {
                 routes::jump,
                 routes::player::player,
                 routes::team::team,
+                routes::tablesort,
+                routes::tablesort_number,
             ],
         )
         .attach(AdHoc::on_liftoff("Background tasks", |_rocket| {

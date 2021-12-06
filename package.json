@@ -5,10 +5,14 @@
     "cssnano": "^5.0.10",
     "postcss": "^8.3.11",
     "postcss-cli": "^9.0.2",
+    "postcss-nested": "^5.0.6",
     "prettier": "^2.4.1",
     "tailwindcss": "^2.2.19"
   },
   "prettier": {
     "printWidth": 120
+  },
+  "dependencies": {
+    "tablesort": "^5.3.0"
   }
 }

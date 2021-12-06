@@ -18,6 +18,7 @@ pub struct Table<const N: usize> {
     pub header: [String; N],
     pub abbr: [String; N],
     pub col_class: [&'static str; N],
+    pub sort_method: [&'static str; N],
     // (cells, first cell class)
     pub rows: Vec<Row<N>>,
 }
@@ -29,6 +30,7 @@ where
     pub fn new(
         header_abbr: [(impl ToString, impl ToString); N],
         col_class: &'static str,
+        sort_method: &'static str,
     ) -> Table<N> {
         let mut header: [String; N] = Default::default();
         let mut abbr: [String; N] = Default::default();
@@ -40,6 +42,7 @@ where
             header,
             abbr,
             col_class: [col_class; N],
+            sort_method: [sort_method; N],
             rows: Vec::new(),
         }
     }
@@ -72,6 +75,7 @@ where
             header: array_insert(self.header, other.header, index),
             abbr: array_insert(self.abbr, other.abbr, index),
             col_class: array_insert(self.col_class, other.col_class, index),
+            sort_method: array_insert(self.sort_method, other.sort_method, index),
             rows: self
                 .rows
                 .into_iter()

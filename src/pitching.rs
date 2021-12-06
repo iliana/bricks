@@ -24,6 +24,7 @@ pub fn table(iter: impl Iterator<Item = Stats>) -> TotalsTable<COLS, COLS> {
             ("Strikeout-to-Walk Ratio", "SO/BB"),
         ],
         "text-right",
+        "number",
     );
 
     let mut totals = Stats::default();

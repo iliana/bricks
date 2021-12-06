@@ -9,6 +9,12 @@ use rocket::{get, Either};
 
 type ResponseResult<T> = Result<T, Debug<anyhow::Error>>;
 
+macro_rules! asset {
+    ($path:expr) => {
+        include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/", $path))
+    };
+}
+
 #[get("/styles.css")]
 pub fn css() -> (ContentType, &'static str) {
     (
@@ -19,9 +25,22 @@ pub fn css() -> (ContentType, &'static str) {
 
 #[get("/brick.svg")]
 pub fn brick() -> (ContentType, &'static str) {
+    (ContentType::SVG, asset!("brick.svg"))
+}
+
+#[get("/tablesort.min.js")]
+pub fn tablesort() -> (ContentType, &'static str) {
     (
-        ContentType::SVG,
-        include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/brick.svg")),
+        ContentType::JavaScript,
+        asset!("node_modules/tablesort/dist/tablesort.min.js"),
+    )
+}
+
+#[get("/tablesort.number.min.js")]
+pub fn tablesort_number() -> (ContentType, &'static str) {
+    (
+        ContentType::JavaScript,
+        asset!("node_modules/tablesort/dist/sorts/tablesort.number.min.js"),
     )
 }
 
