@@ -265,6 +265,7 @@ impl State {
                 checkdesc!(desc == "A surge of Immateria rushes up from Under!\nBaserunners are swept from play!");
                 self.on_base.clear();
             }
+            73 => {}              // peanut flavor text
             84 => {}              // player returned from Elsewhere
             106 | 107 | 146 => {} // added/removed modification
             113 => {
@@ -379,6 +380,8 @@ impl State {
                 self.record_pitcher_event(|s| &mut s.strikes_pitched)?;
             }
             262 => {} // electricity zaps a strike away
+            263 => {} // WINTER STORM WARNING
+            264 => {} // snowflakes modify the field
             _ => bail!("unexpected event type {}", event.ty),
         }
 
