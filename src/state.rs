@@ -362,12 +362,16 @@ impl State {
                 checkdesc!(desc.ends_with("had their rotation shuffled in the Reverb!"));
                 // do nothing, because type 3 will follow
             }
-            137 => {}       // player hatched
-            209 => {}       // score message
-            214 | 215 => {} // team collected a Win
-            216 => {}       // game over
-            223 => {}       // weather is happening
-            252 => {}       // Night Shift (handled in type 114)
+            137 => {} // player hatched
+            209 => {} // score message
+            214 => {} // team collected a Win
+            215 => {
+                // team collected a Win, but it's the postseason
+                self.game.is_postseason = true;
+            }
+            216 => {} // game over
+            223 => {} // weather is happening
+            252 => {} // Night Shift (handled in type 114)
             261 => {
                 // Double strike
                 checkdesc!(desc.ends_with("fires a Double Strike!"));

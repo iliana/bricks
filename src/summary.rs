@@ -49,13 +49,11 @@ pub fn write_summary(
     tree: &TransactionalTree,
     game: &Game,
 ) -> ConflictableTransactionResult<(), serde_json::Error> {
-    let is_postseason = game.day + 1 > 99;
-
     for team in game.teams() {
         for (id, stats) in &team.stats {
             for key in [
-                build_key(team.id, *id, &game.sim, game.season, is_postseason),
-                build_key(*id, team.id, &game.sim, game.season, is_postseason),
+                build_key(team.id, *id, &game.sim, game.season, game.is_postseason),
+                build_key(*id, team.id, &game.sim, game.season, game.is_postseason),
             ] {
                 let mut value = match tree.get(&key)? {
                     None => Value::new(game.day),

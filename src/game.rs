@@ -103,6 +103,7 @@ pub struct Game {
     pub sim: String,
     pub season: u16,
     pub day: u16,
+    pub is_postseason: bool,
     pub away: Team,
     pub home: Team,
 }

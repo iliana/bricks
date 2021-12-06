@@ -1,7 +1,7 @@
+use crate::names::{self, TeamName};
 use crate::routes::player::rocket_uri_macro_player;
 use crate::table::{Table, TotalsTable};
 use crate::{batting, pitching, routes::ResponseResult, summary};
-use crate::names::{self, TeamName};
 use anyhow::Result;
 use askama::Template;
 use rocket::response::content::Html;
