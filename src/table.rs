@@ -134,7 +134,7 @@ where
 
 #[derive(Debug)]
 pub struct TotalsTable<const N: usize, const S: usize> {
-    table: Table<N>,
+    pub table: Table<N>,
     pub totals: [String; S],
 }
 

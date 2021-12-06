@@ -1,9 +1,11 @@
+mod batting;
 mod chronicler;
 mod debug;
 mod feed;
 mod game;
 mod names;
 mod percentage;
+mod pitching;
 mod routes;
 mod schedule;
 mod seasons;
@@ -12,7 +14,7 @@ mod summary;
 mod table;
 mod team;
 
-use anyhow::{bail, Result};
+use anyhow::Result;
 use reqwest::Client;
 use rocket::fairing::AdHoc;
 use rocket::http::ContentType;
@@ -103,8 +105,6 @@ async fn start_task() -> Result<()> {
             for game_id in schedule::load(&sim, season, 0, last_day).await? {
                 process_game_or_log(&sim, game_id, force).await;
             }
-        } else {
-            bail!("failed to get last day for sim {} season {}", sim, season);
         }
     }
 
