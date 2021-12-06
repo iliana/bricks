@@ -5,6 +5,8 @@ RUN npm ci
 RUN npx postcss --env production styles.css -o styles.min.css
 
 FROM rust:1.57-buster as builder
+COPY --from=golang:1.17-buster /usr/local/go /usr/local/go
+ENV PATH /usr/local/go/bin:$PATH
 WORKDIR /usr/src/bricks
 COPY . .
 COPY --from=js-builder /usr/src/bricks/styles.min.css styles.min.css

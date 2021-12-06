@@ -187,16 +187,20 @@ fn rocket() -> _ {
         .attach(AdHoc::on_response("HTML minifier", |_, response| {
             Box::pin(async move {
                 if response.content_type() == Some(ContentType::HTML) {
-                    if let Ok(html) = response.body_mut().take().to_bytes().await {
-                        let mini = minify_html::minify(
-                            &html,
-                            &minify_html::Cfg {
-                                keep_closing_tags: true,
-                                keep_html_and_head_opening_tags: true,
-                                ..minify_html::Cfg::spec_compliant()
+                    if let Ok(mut html) = response.body_mut().take().to_bytes().await {
+                        match minify_html_onepass::with_friendly_error(
+                            &mut html,
+                            &minify_html_onepass::Cfg {
+                                minify_js: true,
+                                minify_css: false,
                             },
-                        );
-                        response.set_sized_body(mini.len(), std::io::Cursor::new(mini));
+                        ) {
+                            Ok(len) => {
+                                html.truncate(len);
+                                response.set_sized_body(len, std::io::Cursor::new(html));
+                            }
+                            Err(error) => log::error!("while minifying HTML: {:?}", error),
+                        }
                     }
                 }
             })
