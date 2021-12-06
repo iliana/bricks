@@ -29,6 +29,13 @@ impl State {
         };
         for team in game.teams_mut() {
             team.pitchers.push(Uuid::default());
+            team.stats.insert(
+                Uuid::default(),
+                Stats {
+                    games_started: 1,
+                    ..Stats::default()
+                },
+            );
         }
 
         State {
@@ -196,6 +203,25 @@ impl State {
             }
             11 => {
                 self.game_finished = true;
+                for team in self.game.teams_mut() {
+                    let stats = team
+                        .stats
+                        .entry(*team.pitchers.last().unwrap())
+                        .or_default();
+                    stats.games_finished = 1;
+                    if stats.games_started > 0 {
+                        stats.complete_games = 1;
+                        if stats.earned_runs == 0 {
+                            stats.shutouts = 1;
+                            if stats.hits_allowed == 0 {
+                                stats.no_hitters = 1;
+                                if stats.walks_issued == 0 {
+                                    stats.perfect_games = 1;
+                                }
+                            }
+                        }
+                    }
+                }
             }
             12 => {
                 // Start of plate appearance

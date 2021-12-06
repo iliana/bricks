@@ -170,10 +170,9 @@ impl Team {
     AddAssign,
     Sum,
 )]
+#[serde(default)]
 pub struct Stats {
-    #[serde(default)]
     pub games_batted: u32,
-    #[serde(default)]
     pub games_pitched: u32,
 
     // Batting stats
@@ -197,6 +196,12 @@ pub struct Stats {
     pub left_on_base: usize,
 
     // Pitching stats
+    pub games_started: u32,
+    pub games_finished: u32,
+    pub complete_games: u32,
+    pub shutouts: u32,
+    pub no_hitters: u32,
+    pub perfect_games: u32,
     pub batters_faced: u32,
     pub outs_recorded: u32,
     pub hits_allowed: u32,

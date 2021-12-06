@@ -38,6 +38,7 @@ const DB_MARKERS: &[&str] = &[
     "marker_clear_on_marker",
     "marker_force_emoji_representation",
     "marker_summary_first_day",
+    "marker_shutouts_fixed",
 ];
 const CLEAR_ON_MARKER: &[&str] = &[summary::TREE];
 const OLD_TREES: &[&str] = &[
