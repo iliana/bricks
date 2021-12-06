@@ -52,7 +52,7 @@ px-2
 {% endmacro %}
 
 {% macro table(table, class) %}
-<div class="w-full max-w-full overflow-x-scroll">
+<div class="w-full max-w-full overflow-x-auto">
   <table class="whitespace-nowrap {{ class }}">
     {% call thead(table) %}
     <tbody>
@@ -64,7 +64,7 @@ px-2
 
 <!-- prettier-ignore -->
 {% macro totals_table(table, class, total_label) %}
-<div class="w-full max-w-full overflow-x-scroll">
+<div class="w-full max-w-full overflow-x-auto">
   <table class="whitespace-nowrap {{ class }}">
     <!-- prettier-ignore -->
     {% call thead(table) %}
