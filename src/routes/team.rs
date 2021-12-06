@@ -1,8 +1,8 @@
 use crate::names::{self, TeamName};
 use crate::routes::player::rocket_uri_macro_player;
 use crate::table::{Table, TotalsTable};
-use crate::{batting, pitching, routes::ResponseResult, seasons, summary, DB};
-use anyhow::{ensure, Result};
+use crate::{batting, pitching, routes::ResponseResult, summary};
+use anyhow::Result;
 use askama::Template;
 use rocket::response::content::Html;
 use rocket::{get, uri};
@@ -22,43 +22,31 @@ fn load_team(id: Uuid, sim: &str, season: u16) -> Result<Option<TeamPage>> {
         None => return Ok(None),
     };
 
-    let common_names_tree = DB.open_tree(names::COMMON_TREE)?;
-    let mut seasons = Vec::new();
-    for row in common_names_tree.scan_prefix(&name.emoji_hash().to_ne_bytes()) {
-        const SEASON_START: usize = std::mem::size_of::<u64>();
-        const SIM_START: usize = SEASON_START + std::mem::size_of::<u16>();
-
-        let (key, value) = row?;
-        ensure!(key.len() >= SIM_START, "invalid key in common names tree");
-        let the_sim = std::str::from_utf8(&key[SIM_START..])?;
-        let mut season_bytes = [0; std::mem::size_of::<u16>()];
-        season_bytes.copy_from_slice(&key[SEASON_START..SIM_START]);
-        let the_season = u16::from_ne_bytes(season_bytes);
-        seasons.push(Season {
-            path: uri!(team(
-                id = Uuid::from_slice(&value)?,
-                sim = the_sim,
-                season = the_season
-            ))
-            .to_string(),
-            selected: if sim == the_sim && season == the_season {
-                "selected"
-            } else {
-                ""
-            },
-            display: format!(
-                "{}, Season {}",
-                seasons::era_name(the_sim, the_season)?.unwrap_or_else(|| the_sim.to_owned()),
-                the_season + 1
-            ),
+    let seasons = name
+        .all_seasons()?
+        .into_iter()
+        .map(|(the_season, team_id)| {
+            Ok(Season {
+                selected: if sim == the_season.sim && season == the_season.season {
+                    "selected"
+                } else {
+                    ""
+                },
+                display: the_season.to_string(),
+                path: uri!(team(
+                    id = team_id,
+                    sim = the_season.sim,
+                    season = the_season.season,
+                ))
+                .to_string(),
+            })
         })
-    }
+        .collect::<Result<Vec<_>>>()?;
 
-    let mut summary = summary::team_summary(id, sim, season)?.collect::<Result<Vec<_>>>()?;
+    let summary = summary::team_summary(id, sim, season)?;
     if summary.is_empty() {
         return Ok(None);
     }
-    summary.sort_unstable();
 
     macro_rules! tabler {
         ($tabler:expr, $filter:expr) => {{
@@ -98,6 +86,8 @@ struct TeamPage {
     standard_pitching: TotalsTable<{ pitching::COLS + 1 }, { pitching::COLS }>,
     postseason_pitching: TotalsTable<{ pitching::COLS + 1 }, { pitching::COLS }>,
 }
+
+// =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=
 
 struct Season {
     path: String,

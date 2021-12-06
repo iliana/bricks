@@ -1,6 +1,6 @@
 use crate::feed::{ExtraData, GameEvent};
 use crate::game::{Game, Stats, Team};
-use crate::team;
+use crate::{seasons::Season, team};
 use anyhow::{bail, ensure, Context, Result};
 use indexmap::IndexMap;
 use serde::Serialize;
@@ -22,9 +22,9 @@ pub struct State {
 }
 
 impl State {
-    pub fn new(sim: &str) -> State {
+    pub fn new(season: Season) -> State {
         let mut game = Game {
-            sim: sim.into(),
+            season,
             ..Default::default()
         };
         for team in game.teams_mut() {
@@ -409,7 +409,6 @@ impl State {
     }
 
     async fn start_event(&mut self, event: &GameEvent) -> Result<()> {
-        self.game.season = event.season;
         self.game.day = event.day;
 
         ensure!(event.team_tags.len() == 2, "invalid team tag count");

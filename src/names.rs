@@ -1,5 +1,5 @@
-use crate::DB;
-use anyhow::Result;
+use crate::{seasons::Season, DB};
+use anyhow::{ensure, Result};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -36,6 +36,29 @@ impl TeamName {
         let mut hasher = twox_hash::XxHash64::default();
         self.emoji.hash(&mut hasher);
         hasher.finish()
+    }
+
+    pub fn all_seasons(&self) -> Result<Vec<(Season, Uuid)>> {
+        const SEASON_START: usize = std::mem::size_of::<u64>();
+        const SIM_START: usize = SEASON_START + std::mem::size_of::<u16>();
+
+        let tree = DB.open_tree(COMMON_TREE)?;
+        let mut v = Vec::new();
+        for row in tree.scan_prefix(&self.emoji_hash().to_ne_bytes()) {
+            let (key, value) = row?;
+            ensure!(key.len() >= SIM_START, "invalid key in common names tree");
+            let mut season_bytes = [0; std::mem::size_of::<u16>()];
+            season_bytes.copy_from_slice(&key[SEASON_START..SIM_START]);
+            v.push((
+                Season {
+                    sim: std::str::from_utf8(&key[SIM_START..])?.to_owned(),
+                    season: u16::from_ne_bytes(season_bytes),
+                },
+                Uuid::from_slice(&value)?,
+            ));
+        }
+        v.sort_unstable();
+        Ok(v)
     }
 }
 

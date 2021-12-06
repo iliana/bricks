@@ -1,4 +1,4 @@
-use crate::{API_BASE, CLIENT, DB};
+use crate::{seasons::Season, API_BASE, CLIENT, DB};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
@@ -6,16 +6,15 @@ use std::collections::BTreeMap;
 use uuid::Uuid;
 
 pub async fn load(
-    sim: &str,
-    season: u16,
+    season: &Season,
     start_day: u16,
     end_day: u16,
 ) -> Result<impl Iterator<Item = Uuid>> {
     #[derive(Debug, Serialize)]
     #[serde(rename_all = "camelCase")]
     struct Query<'a> {
-        sim: &'a str,
-        season: u16,
+        #[serde(flatten)]
+        season: &'a Season,
         start_day: u16,
         end_day: u16,
     }
@@ -24,7 +23,7 @@ pub async fn load(
 
     let mut cached: BTreeMap<u16, Vec<Uuid>> = BTreeMap::new();
     for day in start_day..=end_day {
-        if let Some(value) = tree.get(&build_key(sim, season, day))? {
+        if let Some(value) = tree.get(&build_key(season, day))? {
             cached.insert(day, schedule_to_ids(serde_json::from_slice(&value)?));
         }
     }
@@ -39,7 +38,6 @@ pub async fn load(
                 "{}/api/games/schedule?{}",
                 API_BASE,
                 serde_urlencoded::to_string(&Query {
-                    sim,
                     season,
                     start_day: start_missing,
                     end_day: end_missing
@@ -52,7 +50,7 @@ pub async fn load(
         for (day, raw_schedule) in response {
             let schedule: Vec<Game> = serde_json::from_str(raw_schedule.get())?;
             if schedule.iter().all(|game| game.game_complete) {
-                tree.insert(&build_key(sim, season, day), raw_schedule.get())?;
+                tree.insert(&build_key(season, day), raw_schedule.get())?;
             }
             cached.insert(day, schedule_to_ids(schedule));
         }
@@ -76,15 +74,15 @@ struct Game {
     game_complete: bool,
 }
 
-fn build_key(sim: &str, season: u16, day: u16) -> Vec<u8> {
-    let mut key = Vec::with_capacity(sim.len() + 2 * std::mem::size_of::<u16>());
-    key.extend_from_slice(sim.as_bytes());
-    key.extend_from_slice(&season.to_ne_bytes());
+fn build_key(season: &Season, day: u16) -> Vec<u8> {
+    let mut key = Vec::with_capacity(season.sim.len() + 2 * std::mem::size_of::<u16>());
+    key.extend_from_slice(season.sim.as_bytes());
+    key.extend_from_slice(&season.season.to_ne_bytes());
     key.extend_from_slice(&day.to_ne_bytes());
     key
 }
 
-pub async fn last_day(sim: &str, season: u16) -> Result<Option<u16>> {
+pub async fn last_day(season: &Season) -> Result<Option<u16>> {
     #[derive(Debug, Serialize)]
     #[serde(rename_all = "camelCase")]
     struct Query<'a> {
@@ -109,9 +107,9 @@ pub async fn last_day(sim: &str, season: u16) -> Result<Option<u16>> {
             API_BASE,
             serde_urlencoded::to_string(&Query {
                 ty: 11,
-                sim,
-                season_start: season,
-                season_end: season,
+                sim: &season.sim,
+                season_start: season.season,
+                season_end: season.season,
                 sort: 0,
                 limit: 1,
             })?

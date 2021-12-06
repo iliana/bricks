@@ -14,6 +14,7 @@ mod summary;
 mod table;
 mod team;
 
+use crate::seasons::Season;
 use anyhow::Result;
 use reqwest::Client;
 use rocket::fairing::AdHoc;
@@ -76,9 +77,9 @@ macro_rules! log_err {
     };
 }
 
-async fn process_game_or_log(sim: &str, id: Uuid, force: bool) {
+async fn process_game_or_log(season: Season, id: Uuid, force: bool) {
     let start = Instant::now();
-    match game::process(sim, id, force).await {
+    match game::process(season, id, force).await {
         Ok(true) => log::info!("processed game {} in {:?}", id, Instant::now() - start),
         Ok(false) => {}
         Err(err) => log::error!("failed to process game {}: {:#}", id, err),
@@ -99,14 +100,14 @@ async fn start_task() -> Result<()> {
 
     seasons::load().await?;
 
-    for season in seasons::iter()? {
-        let (sim, season) = season?;
-        if sim == "thisidisstaticyo" || sim == "gamma4" {
+    for season in Season::iter()? {
+        let season = season?;
+        if season.sim == "thisidisstaticyo" || season.sim == "gamma4" {
             continue;
         }
-        if let Some(last_day) = schedule::last_day(&sim, season).await? {
-            for game_id in schedule::load(&sim, season, 0, last_day).await? {
-                process_game_or_log(&sim, game_id, force).await;
+        if let Some(last_day) = schedule::last_day(&season).await? {
+            for game_id in schedule::load(&season, 0, last_day).await? {
+                process_game_or_log(season.clone(), game_id, force).await;
             }
         }
     }
@@ -133,12 +134,16 @@ async fn update_task() -> Result<()> {
         .await?
         .json()
         .await?;
-    if seasons::era_name(&now.sim, now.season)?.is_none() {
+    let season = Season {
+        sim: now.sim,
+        season: now.season,
+    };
+    if season.era_name()?.is_none() {
         seasons::load().await?;
     }
 
-    for game_id in schedule::load(&now.sim, now.season, now.day.max(1) - 1, now.day).await? {
-        process_game_or_log(&now.sim, game_id, false).await;
+    for game_id in schedule::load(&season, now.day.max(1) - 1, now.day).await? {
+        process_game_or_log(season.clone(), game_id, false).await;
     }
 
     Ok(())

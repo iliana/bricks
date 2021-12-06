@@ -3,7 +3,7 @@ use crate::names::box_names;
 use crate::routes::player::rocket_uri_macro_player;
 use crate::routes::ResponseResult;
 use crate::table::{row, Table};
-use crate::{seasons, DB};
+use crate::DB;
 use anyhow::Result;
 use askama::Template;
 use rocket::response::content::Html;
@@ -24,8 +24,6 @@ pub fn game(id: Uuid) -> ResponseResult<Option<Html<String>>> {
 
             Some(Html(
                 GamePage {
-                    era_name: seasons::era_name(&game.sim, game.season)?
-                        .unwrap_or_else(|| game.sim.to_owned()),
                     batters_tables: [
                         batters_table(&game.away, &names),
                         batters_table(&game.home, &names),
@@ -62,7 +60,6 @@ pub fn game(id: Uuid) -> ResponseResult<Option<Html<String>>> {
 #[template(path = "game.html")]
 struct GamePage {
     game: Game,
-    era_name: String,
     batters_tables: [Table<8>; 2],
     batting_lines: [Vec<Line>; 2],
     baserunning_lines: [Vec<Line>; 2],

@@ -1,5 +1,5 @@
 use crate::names::{self, TeamName};
-use crate::{debug::LogEntry, percentage::Pct, state::State, summary, DB};
+use crate::{debug::LogEntry, percentage::Pct, seasons::Season, state::State, summary, DB};
 use anyhow::Result;
 use derive_more::{Add, AddAssign, Sum};
 use indexmap::IndexMap;
@@ -19,7 +19,7 @@ lazy_static::lazy_static! {
 pub const DEBUG_TREE: &str = "debug_v1";
 pub const GAME_STATS_TREE: &str = "game_stats_v3";
 
-pub async fn process(sim: &str, id: Uuid, force: bool) -> Result<bool> {
+pub async fn process(season: Season, id: Uuid, force: bool) -> Result<bool> {
     let game_stats_tree = DB.open_tree(GAME_STATS_TREE)?;
     if force || !game_stats_tree.contains_key(id.as_bytes())? {
         let debug_tree = DB.open_tree(DEBUG_TREE)?;
@@ -27,7 +27,7 @@ pub async fn process(sim: &str, id: Uuid, force: bool) -> Result<bool> {
         let names_tree = DB.open_tree(names::TREE)?;
         let common_names_tree = DB.open_tree(names::COMMON_TREE)?;
 
-        let mut state = State::new(sim);
+        let mut state = State::new(season);
         let mut debug_log = Vec::new();
         let mut old = Value::default();
         let mut feed = crate::feed::load(id).await?;
@@ -87,8 +87,8 @@ pub async fn process(sim: &str, id: Uuid, force: bool) -> Result<bool> {
 
                         let mut common_key = Vec::new();
                         common_key.extend_from_slice(&team.name.emoji_hash().to_ne_bytes());
-                        common_key.extend_from_slice(&game.season.to_ne_bytes());
-                        common_key.extend_from_slice(game.sim.as_bytes());
+                        common_key.extend_from_slice(&game.season.season.to_ne_bytes());
+                        common_key.extend_from_slice(game.season.sim.as_bytes());
                         common_names_tree.insert(common_key, team.id.as_bytes())?;
                     }
 
@@ -113,8 +113,8 @@ pub async fn process(sim: &str, id: Uuid, force: bool) -> Result<bool> {
 
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct Game {
-    pub sim: String,
-    pub season: u16,
+    #[serde(flatten)]
+    pub season: Season,
     pub day: u16,
     pub is_postseason: bool,
     pub away: Team,

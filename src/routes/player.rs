@@ -21,11 +21,10 @@ fn load_player(id: Uuid) -> Result<Option<PlayerPage>> {
         None => return Ok(None),
     };
 
-    let mut summary = summary::player_summary(id)?.collect::<Result<Vec<_>>>()?;
+    let summary = summary::player_summary(id)?;
     if summary.is_empty() {
         return Ok(None);
     }
-    summary.sort_unstable();
 
     macro_rules! tabler {
         ($tabler:expr, $filter:expr) => {{
@@ -33,12 +32,16 @@ fn load_player(id: Uuid) -> Result<Option<PlayerPage>> {
             for row in summary.iter().filter($filter) {
                 let team = names::team_name(row.team_id)?.unwrap_or_default();
                 ident_table.push([
-                    format!("{}/S{}", row.era, row.season + 1),
+                    format!("{:#}", row.season),
                     format!("{} {}", team.emoji, team.shorthand),
                 ]);
                 ident_table.set_href(
                     1,
-                    uri!(team(id = row.team_id, sim = &row.sim, season = row.season)),
+                    uri!(team(
+                        id = row.team_id,
+                        sim = &row.season.sim,
+                        season = row.season.season
+                    )),
                 );
             }
             let stats_table = $tabler(summary.iter().filter($filter).map(|row| row.stats));
