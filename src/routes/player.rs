@@ -31,10 +31,7 @@ fn load_player(id: Uuid) -> Result<Option<PlayerPage>> {
             let mut ident_table = Table::new([("Season", ""), ("Team", "")], "text-left", "none");
             for row in summary.iter().filter($filter) {
                 let team = names::team_name(row.team_id)?.unwrap_or_default();
-                ident_table.push([
-                    format!("{:#}", row.season),
-                    format!("{} {}", team.emoji, team.shorthand),
-                ]);
+                ident_table.push([format!("{:#}", row.season), team.shorthand]);
                 ident_table.set_href(
                     1,
                     uri!(team(
