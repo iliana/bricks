@@ -1,0 +1,42 @@
+{% import "macros.html" as macros %} {% extends "base.html" %}
+
+<!-- prettier-ignore -->
+{% block title %}{{ season }} {{ what }}{% endblock %}
+
+{% block content %}
+<form action="/jump" method="get" class="mt-4">
+  <select autocomplete="off" class="form-select bg-transparent md:text-lg lg:text-xl" name="path">
+    {% for the_season in seasons %}
+    <option value="{{ the_season.uri(is_batting) }}" {{ the_season.selected(season) }}>{{ the_season }}</option>
+    {% endfor %}
+  </select>
+  <noscript>
+    <button class="form-input bg-transparent ml-4 md:text-lg lg:text-xl" type="submit">Go</button>
+  </noscript>
+
+  <script>
+    {% include "jump.js" %}
+  </script>
+</form>
+
+<ul class="font-semibold text-base md:text-lg space-x-4 mt-2 md:mt-2.5 lg:mt-3">
+  <li class="inline">
+    <a
+      class="{% if is_batting %}text-black dark:text-white no-underline{% endif %}"
+      href="/batting/{{ season.sim }}/{{ season.season }}"
+      >Batting</a
+    >
+  </li>
+  <li class="inline">
+    <a
+      class="{% if !is_batting %}text-black dark:text-white no-underline{% endif %}"
+      href="/pitching/{{ season.sim }}/{{ season.season }}"
+      >Pitching</a
+    >
+  </li>
+</ul>
+
+<h2>Standard {{ what }}</h2>
+<!-- prettier-ignore -->
+{% call macros::table(table, "sort leading-loose tabular-nums") %}
+{% endblock %}

@@ -1,6 +1,7 @@
 pub mod debug;
 pub mod game;
 pub mod player;
+pub mod season;
 pub mod team;
 
 use rocket::http::{uri::Origin, ContentType};

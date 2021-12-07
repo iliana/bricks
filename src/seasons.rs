@@ -1,12 +1,17 @@
+use crate::routes::season::{rocket_uri_macro_season_batting, rocket_uri_macro_season_pitching};
+use crate::routes::team::rocket_uri_macro_team;
 use crate::{CLIENT, CONFIGS_BASE, DB};
 use anyhow::{Context, Result};
+use rocket::uri;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::fmt::{self, Display};
+use uuid::Uuid;
 use zerocopy::{BigEndian, LayoutVerified, U16};
 
 const NAME_TREE: &str = "sim_names_v1";
 const SORT_TREE: &str = "sim_order_v1";
+pub const RECORDED_TREE: &str = "recorded_seasons_v1";
 
 pub async fn load() -> Result<()> {
     let name_tree = DB.open_tree(NAME_TREE)?;
@@ -55,8 +60,8 @@ pub struct Season {
 }
 
 impl Season {
-    pub fn iter() -> Result<impl Iterator<Item = Result<Season>>> {
-        Ok(DB.open_tree(NAME_TREE)?.iter().map(|res| {
+    fn iter_inner(tree: &'static str) -> Result<impl Iterator<Item = Result<Season>>> {
+        Ok(DB.open_tree(tree)?.iter().map(|res| {
             res.map_err(anyhow::Error::from).and_then(|(key, _)| {
                 let (sim, season): (&[u8], LayoutVerified<&[u8], U16<BigEndian>>) =
                     LayoutVerified::new_unaligned_from_suffix(&*key)
@@ -67,6 +72,14 @@ impl Season {
                 })
             })
         }))
+    }
+
+    pub fn iter_known() -> Result<impl Iterator<Item = Result<Season>>> {
+        Season::iter_inner(NAME_TREE)
+    }
+
+    pub fn iter_recorded() -> Result<impl Iterator<Item = Result<Season>>> {
+        Season::iter_inner(RECORDED_TREE)
     }
 
     pub fn era_name(&self) -> Result<Option<String>> {
@@ -98,6 +111,27 @@ impl Season {
             (Some(_), None) => Ordering::Less,
             (None, Some(_)) => Ordering::Greater,
             (None, None) => self.sim.cmp(&other.sim),
+        }
+    }
+
+    pub fn uri(&self, is_batting: &bool) -> String {
+        if *is_batting {
+            uri!(season_batting(sim = &self.sim, season = self.season))
+        } else {
+            uri!(season_pitching(sim = &self.sim, season = self.season))
+        }
+        .to_string()
+    }
+
+    pub fn team_uri(&self, id: &&Uuid) -> String {
+        uri!(team(id = **id, sim = &self.sim, season = self.season)).to_string()
+    }
+
+    pub fn selected(&self, other: &Season) -> &'static str {
+        if self == other {
+            "selected"
+        } else {
+            ""
         }
     }
 }

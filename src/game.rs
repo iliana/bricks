@@ -1,5 +1,6 @@
 use crate::names::{self, TeamName};
-use crate::{debug::LogEntry, percentage::Pct, seasons::Season, state::State, summary, DB};
+use crate::seasons::{self, Season};
+use crate::{debug::LogEntry, percentage::Pct, state::State, summary, DB};
 use anyhow::Result;
 use derive_more::{Add, AddAssign, Sum};
 use indexmap::IndexMap;
@@ -24,8 +25,10 @@ pub async fn process(season: Season, id: Uuid, force: bool) -> Result<bool> {
     if force || !game_stats_tree.contains_key(id.as_bytes())? {
         let debug_tree = DB.open_tree(DEBUG_TREE)?;
         let summary_tree = DB.open_tree(summary::TREE)?;
+        let season_summary_tree = DB.open_tree(summary::SEASON_TREE)?;
         let names_tree = DB.open_tree(names::TREE)?;
         let common_names_tree = DB.open_tree(names::COMMON_TREE)?;
+        let recorded_tree = DB.open_tree(seasons::RECORDED_TREE)?;
 
         let mut state = State::new(season);
         let mut debug_log = Vec::new();
@@ -70,11 +73,20 @@ pub async fn process(season: Season, id: Uuid, force: bool) -> Result<bool> {
         (
             &game_stats_tree,
             &summary_tree,
+            &season_summary_tree,
             &names_tree,
             &common_names_tree,
+            &recorded_tree,
         )
             .transaction(
-                |(game_stats_tree, summary_tree, names_tree, common_names_tree)| {
+                |(
+                    game_stats_tree,
+                    summary_tree,
+                    season_summary_tree,
+                    names_tree,
+                    common_names_tree,
+                    recorded_tree,
+                )| {
                     for team in game.teams() {
                         names_tree.insert(
                             team.id.as_bytes(),
@@ -92,7 +104,7 @@ pub async fn process(season: Season, id: Uuid, force: bool) -> Result<bool> {
                         common_names_tree.insert(common_key, team.id.as_bytes())?;
                     }
 
-                    summary::write_summary(summary_tree, &game)?;
+                    summary::write_summary(summary_tree, season_summary_tree, &game)?;
 
                     game_stats_tree.insert(
                         id.as_bytes(),
@@ -100,6 +112,12 @@ pub async fn process(season: Season, id: Uuid, force: bool) -> Result<bool> {
                             .map_err(ConflictableTransactionError::Abort)?
                             .as_slice(),
                     )?;
+
+                    let mut key =
+                        Vec::with_capacity(game.season.sim.len() + std::mem::size_of::<u16>());
+                    key.extend_from_slice(game.season.sim.as_bytes());
+                    key.extend_from_slice(&game.season.season.to_be_bytes());
+                    recorded_tree.insert(key, Vec::new())?;
 
                     Ok(())
                 },

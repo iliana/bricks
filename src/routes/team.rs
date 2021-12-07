@@ -22,22 +22,7 @@ fn load_team(id: Uuid, season: Season) -> Result<Option<TeamPage>> {
         None => return Ok(None),
     };
 
-    let seasons = name
-        .all_seasons()?
-        .into_iter()
-        .map(|(the_season, team_id)| {
-            Ok(SeasonEntry {
-                selected: if the_season == season { "selected" } else { "" },
-                display: the_season.to_string(),
-                path: uri!(team(
-                    id = team_id,
-                    sim = the_season.sim,
-                    season = the_season.season,
-                ))
-                .to_string(),
-            })
-        })
-        .collect::<Result<Vec<_>>>()?;
+    let seasons = name.all_seasons()?;
 
     let summary = summary::team_summary(id, &season)?;
     if summary.is_empty() {
@@ -62,6 +47,7 @@ fn load_team(id: Uuid, season: Season) -> Result<Option<TeamPage>> {
 
     Ok(Some(TeamPage {
         team: name,
+        season,
         seasons,
         standard_batting: tabler!(batting::table, |s| !s.is_postseason && s.stats.is_batting()),
         postseason_batting: tabler!(batting::table, |s| s.is_postseason && s.stats.is_batting()),
@@ -76,17 +62,10 @@ fn load_team(id: Uuid, season: Season) -> Result<Option<TeamPage>> {
 #[template(path = "team.html")]
 struct TeamPage {
     team: TeamName,
-    seasons: Vec<SeasonEntry>,
+    season: Season,
+    seasons: Vec<(Season, Uuid)>,
     standard_batting: TotalsTable<{ batting::COLS + 1 }, { batting::COLS }>,
     postseason_batting: TotalsTable<{ batting::COLS + 1 }, { batting::COLS }>,
     standard_pitching: TotalsTable<{ pitching::COLS + 1 }, { pitching::COLS }>,
     postseason_pitching: TotalsTable<{ pitching::COLS + 1 }, { pitching::COLS }>,
-}
-
-// =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=
-
-struct SeasonEntry {
-    path: String,
-    selected: &'static str,
-    display: String,
 }

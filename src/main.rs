@@ -42,8 +42,10 @@ const DB_MARKERS: &[&str] = &[
     "marker_shutouts_fixed",
     "marker_postseason_99_fix",
     "marker_common_names_tree",
+    "marker_recorded_seasons_tree",
+    "marker_all_team_summaries_v3",
 ];
-const CLEAR_ON_MARKER: &[&str] = &[summary::TREE];
+const CLEAR_ON_MARKER: &[&str] = &[summary::TREE, summary::SEASON_TREE];
 const OLD_TREES: &[&str] = &[];
 
 lazy_static::lazy_static! {
@@ -93,7 +95,7 @@ async fn start_task() -> Result<()> {
 
     seasons::load().await?;
 
-    for season in Season::iter()? {
+    for season in Season::iter_known()? {
         let season = season?;
         if season.sim == "thisidisstaticyo" || season.sim == "gamma4" {
             continue;
@@ -161,6 +163,8 @@ fn rocket() -> _ {
                 routes::team::team,
                 routes::tablesort,
                 routes::tablesort_number,
+                routes::season::season_batting,
+                routes::season::season_pitching,
             ],
         )
         .attach(AdHoc::on_liftoff("Background tasks", |_rocket| {
