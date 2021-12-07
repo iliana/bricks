@@ -1,15 +1,65 @@
+use crate::names::{self, TeamName};
 use crate::{seasons::Season, API_BASE, CLIENT, DB};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 use std::collections::BTreeMap;
+use std::mem::size_of_val;
 use uuid::Uuid;
 
-pub async fn load(
-    season: &Season,
-    start_day: u16,
-    end_day: u16,
-) -> Result<impl Iterator<Item = Uuid>> {
+const TREE: &str = "schedule_v1";
+
+#[derive(Debug, Default, Clone, Copy, Serialize)]
+pub struct Record {
+    pub wins: u16, // ~technically~ non-losses
+    pub losses: u16,
+}
+
+impl Record {
+    pub fn diff(&self) -> i32 {
+        i32::from(self.wins) - i32::from(self.losses)
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Entry {
+    pub id: Uuid,
+    pub day: u16,
+    pub home: bool,
+    pub opponent: TeamName,
+    pub won: bool,
+    pub score: u16,
+    pub opponent_score: u16,
+}
+
+pub fn schedule(team: Uuid, season: &Season) -> Result<Vec<(Record, Option<Entry>)>> {
+    let tree = DB.open_tree(TREE)?;
+    let mut search_key =
+        Vec::with_capacity(season.sim.len() + size_of_val(&season.season) + size_of_val(&team));
+    search_key.extend_from_slice(season.sim.as_bytes());
+    search_key.extend_from_slice(&season.season.to_ne_bytes());
+    search_key.extend_from_slice(team.as_bytes());
+    let mut v = Vec::new();
+    let mut record = Record::default();
+    for row in tree.scan_prefix(&search_key) {
+        let (_, value) = row?;
+        let entry: Entry = serde_json::from_slice(&value)?;
+        while v.len() < usize::from(entry.day) {
+            v.push((record, None));
+        }
+        if entry.won {
+            record.wins += 1;
+        } else {
+            record.losses += 1;
+        }
+        v.push((record, Some(entry)));
+    }
+    Ok(v)
+}
+
+// =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=
+
+pub async fn load(season: &Season, start_day: u16, end_day: u16) -> Result<Vec<Uuid>> {
     #[derive(Debug, Serialize)]
     #[serde(rename_all = "camelCase")]
     struct Query<'a> {
@@ -19,12 +69,13 @@ pub async fn load(
         end_day: u16,
     }
 
-    let tree = DB.open_tree("cache_schedule_v1")?;
+    let tree = DB.open_tree(TREE)?;
+    let cache_tree = DB.open_tree("cache_schedule_v1")?;
 
-    let mut cached: BTreeMap<u16, Vec<Uuid>> = BTreeMap::new();
+    let mut cached: BTreeMap<u16, Vec<Game>> = BTreeMap::new();
     for day in start_day..=end_day {
-        if let Some(value) = tree.get(&build_key(season, day))? {
-            cached.insert(day, schedule_to_ids(serde_json::from_slice(&value)?));
+        if let Some(value) = cache_tree.get(&build_cache_key(season, day))? {
+            cached.insert(day, filter_complete(serde_json::from_slice(&value)?));
         }
     }
 
@@ -50,20 +101,53 @@ pub async fn load(
         for (day, raw_schedule) in response {
             let schedule: Vec<Game> = serde_json::from_str(raw_schedule.get())?;
             if schedule.iter().all(|game| game.game_complete) {
-                tree.insert(&build_key(season, day), raw_schedule.get())?;
+                cache_tree.insert(&build_cache_key(season, day), raw_schedule.get())?;
             }
-            cached.insert(day, schedule_to_ids(schedule));
+            cached.insert(day, filter_complete(schedule));
         }
     }
 
-    Ok(cached.into_values().flatten())
+    let mut v = Vec::new();
+    for (day, games) in cached {
+        for game in games {
+            for team in [game.away_team, game.home_team] {
+                v.push(game.id);
+
+                let mut key = Vec::with_capacity(
+                    season.sim.len()
+                        + size_of_val(&season.season)
+                        + size_of_val(&team)
+                        + size_of_val(&day),
+                );
+                key.extend_from_slice(season.sim.as_bytes());
+                key.extend_from_slice(&season.season.to_ne_bytes());
+                key.extend_from_slice(team.as_bytes());
+                key.extend_from_slice(&day.to_be_bytes());
+
+                let (opponent_id, opponent_score) = game.opponent(team);
+                tree.insert(
+                    key.as_slice(),
+                    serde_json::to_vec(&Entry {
+                        id: game.id,
+                        day,
+                        home: game.home_team == team,
+                        opponent: names::team_name(opponent_id)?.unwrap_or_default(),
+                        won: game.winner() == team,
+                        score: game.score(team),
+                        opponent_score,
+                    })?
+                    .as_slice(),
+                )?;
+            }
+        }
+    }
+    Ok(v)
 }
 
-fn schedule_to_ids(schedule: Vec<Game>) -> Vec<Uuid> {
+fn filter_complete(schedule: Vec<Game>) -> Vec<Game> {
     schedule
         .into_iter()
-        .filter(|g| g.game_complete)
-        .map(|g| g.id)
+        .filter(|game| game.game_complete)
         .collect()
 }
 
@@ -71,16 +155,54 @@ fn schedule_to_ids(schedule: Vec<Game>) -> Vec<Uuid> {
 #[serde(rename_all = "camelCase")]
 struct Game {
     id: Uuid,
+    away_team: Uuid,
+    home_team: Uuid,
+    away_score: u16,
+    home_score: u16,
     game_complete: bool,
+    winner: Option<Uuid>,
 }
 
-fn build_key(season: &Season, day: u16) -> Vec<u8> {
-    let mut key = Vec::with_capacity(season.sim.len() + 2 * std::mem::size_of::<u16>());
+impl Game {
+    fn winner(&self) -> Uuid {
+        if let Some(winner) = self.winner {
+            winner
+        } else if self.home_score > self.away_score {
+            self.home_team
+        } else {
+            self.away_team
+        }
+    }
+
+    fn score(&self, team: Uuid) -> u16 {
+        if team == self.home_team {
+            self.home_score
+        } else {
+            self.away_score
+        }
+    }
+
+    fn opponent(&self, team: Uuid) -> (Uuid, u16) {
+        if team == self.home_team {
+            (self.away_team, self.away_score)
+        } else {
+            (self.home_team, self.home_score)
+        }
+    }
+}
+
+// =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=
+
+fn build_cache_key(season: &Season, day: u16) -> Vec<u8> {
+    let mut key =
+        Vec::with_capacity(season.sim.len() + size_of_val(&season.season) + size_of_val(&day));
     key.extend_from_slice(season.sim.as_bytes());
     key.extend_from_slice(&season.season.to_ne_bytes());
     key.extend_from_slice(&day.to_ne_bytes());
     key
 }
+
+// =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=
 
 pub async fn last_day(season: &Season) -> Result<Option<u16>> {
     #[derive(Debug, Serialize)]

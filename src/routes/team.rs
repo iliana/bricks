@@ -1,5 +1,6 @@
 use crate::names::{self, TeamName};
 use crate::routes::player::rocket_uri_macro_player;
+use crate::schedule::{self, Entry, Record};
 use crate::table::{Table, TotalsTable};
 use crate::{batting, pitching, routes::ResponseResult, seasons::Season, summary};
 use anyhow::Result;
@@ -27,6 +28,20 @@ fn load_team(id: Uuid, season: Season) -> Result<Option<TeamPage>> {
         return Ok(None);
     }
 
+    let schedule = schedule::schedule(id, &season)?;
+    let ceiling = schedule
+        .iter()
+        .map(|(r, _)| r.diff())
+        .max()
+        .unwrap_or_default()
+        .max(0);
+    let floor = schedule
+        .iter()
+        .map(|(r, _)| r.diff())
+        .min()
+        .unwrap_or_default()
+        .min(0);
+
     let summary = summary::team_summary(id, &season)?;
 
     macro_rules! tabler {
@@ -49,6 +64,9 @@ fn load_team(id: Uuid, season: Season) -> Result<Option<TeamPage>> {
         team: name,
         season,
         seasons,
+        schedule,
+        ceiling,
+        floor,
         standard_batting: tabler!(batting::table, |s| !s.is_postseason && s.stats.is_batting()),
         postseason_batting: tabler!(batting::table, |s| s.is_postseason && s.stats.is_batting()),
         standard_pitching: tabler!(pitching::table, |s| !s.is_postseason
@@ -64,6 +82,9 @@ struct TeamPage {
     team: TeamName,
     season: Season,
     seasons: Vec<(Season, Uuid)>,
+    schedule: Vec<(Record, Option<Entry>)>,
+    ceiling: i32,
+    floor: i32,
     standard_batting: TotalsTable<{ batting::COLS + 1 }, { batting::COLS }>,
     postseason_batting: TotalsTable<{ batting::COLS + 1 }, { batting::COLS }>,
     standard_pitching: TotalsTable<{ pitching::COLS + 1 }, { pitching::COLS }>,

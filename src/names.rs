@@ -4,6 +4,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
+use std::mem::size_of;
 use uuid::Uuid;
 
 pub const TREE: &str = "names_v1";
@@ -39,15 +40,15 @@ impl TeamName {
     }
 
     pub fn all_seasons(&self) -> Result<Vec<(Season, Uuid)>> {
-        const SEASON_START: usize = std::mem::size_of::<u64>();
-        const SIM_START: usize = SEASON_START + std::mem::size_of::<u16>();
+        const SEASON_START: usize = size_of::<u64>();
+        const SIM_START: usize = SEASON_START + size_of::<u16>();
 
         let tree = DB.open_tree(COMMON_TREE)?;
         let mut v = Vec::new();
         for row in tree.scan_prefix(&self.emoji_hash().to_ne_bytes()) {
             let (key, value) = row?;
             ensure!(key.len() >= SIM_START, "invalid key in common names tree");
-            let mut season_bytes = [0; std::mem::size_of::<u16>()];
+            let mut season_bytes = [0; size_of::<u16>()];
             season_bytes.copy_from_slice(&key[SEASON_START..SIM_START]);
             v.push((
                 Season {

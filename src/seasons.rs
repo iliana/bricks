@@ -6,6 +6,7 @@ use rocket::uri;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::fmt::{self, Display};
+use std::mem::size_of_val;
 use uuid::Uuid;
 use zerocopy::{BigEndian, LayoutVerified, U16};
 
@@ -84,7 +85,7 @@ impl Season {
 
     pub fn era_name(&self) -> Result<Option<String>> {
         let tree = DB.open_tree(NAME_TREE)?;
-        let mut key = Vec::with_capacity(self.sim.len() + std::mem::size_of::<u16>());
+        let mut key = Vec::with_capacity(self.sim.len() + size_of_val(&self.season));
         key.extend_from_slice(self.sim.as_bytes());
         key.extend_from_slice(&self.season.to_be_bytes());
         match tree.get(&key)? {

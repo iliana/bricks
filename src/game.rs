@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sled::transaction::{ConflictableTransactionError, Transactional};
 use std::collections::{BTreeMap, HashMap};
+use std::mem::size_of_val;
 use uuid::Uuid;
 
 lazy_static::lazy_static! {
@@ -113,8 +114,9 @@ pub async fn process(season: Season, id: Uuid, force: bool) -> Result<bool> {
                             .as_slice(),
                     )?;
 
-                    let mut key =
-                        Vec::with_capacity(game.season.sim.len() + std::mem::size_of::<u16>());
+                    let mut key = Vec::with_capacity(
+                        game.season.sim.len() + size_of_val(&game.season.season),
+                    );
                     key.extend_from_slice(game.season.sim.as_bytes());
                     key.extend_from_slice(&game.season.season.to_be_bytes());
                     recorded_tree.insert(key, Vec::new())?;

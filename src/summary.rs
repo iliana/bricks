@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use sled::transaction::{
     ConflictableTransactionError, ConflictableTransactionResult, TransactionalTree,
 };
+use std::mem::{size_of, size_of_val};
 use uuid::Uuid;
 use zerocopy::{AsBytes, FromBytes, LayoutVerified};
 
@@ -132,7 +133,7 @@ struct KeyPrefix {
 }
 
 fn build_key(scan_id: Uuid, other_id: Uuid, season: &Season, is_postseason: bool) -> Vec<u8> {
-    let mut key = Vec::with_capacity(std::mem::size_of::<KeyPrefix>() + season.sim.len());
+    let mut key = Vec::with_capacity(size_of::<KeyPrefix>() + season.sim.len());
     key.extend_from_slice(
         KeyPrefix {
             scan_id: *scan_id.as_bytes(),
@@ -175,7 +176,7 @@ pub struct SeasonSummary {
 pub fn season_summary(season: &Season) -> Result<Vec<SeasonSummary>> {
     let mut v = Vec::new();
     let tree = DB.open_tree(SEASON_TREE)?;
-    let mut scan_key = Vec::with_capacity(season.sim.len() + std::mem::size_of::<u16>());
+    let mut scan_key = Vec::with_capacity(season.sim.len() + size_of_val(&season.season));
     scan_key.extend_from_slice(season.sim.as_bytes());
     scan_key.extend_from_slice(&season.season.to_ne_bytes());
     for row in tree.scan_prefix(scan_key) {
@@ -195,7 +196,9 @@ pub fn season_summary(season: &Season) -> Result<Vec<SeasonSummary>> {
 }
 
 fn build_season_key(season: &Season, player_id: Uuid) -> Vec<u8> {
-    let mut key = Vec::with_capacity(season.sim.len() + std::mem::size_of::<u16>() + 16);
+    let mut key = Vec::with_capacity(
+        season.sim.len() + size_of_val(&season.season) + size_of_val(&player_id),
+    );
     key.extend_from_slice(season.sim.as_bytes());
     key.extend_from_slice(&season.season.to_ne_bytes());
     key.extend_from_slice(player_id.as_bytes());

@@ -1,6 +1,25 @@
 {% import "macros.html" as macros %} {% extends "base.html" %}
 
 <!-- prettier-ignore -->
+{% macro line(x1, x2, y1, y2, class) %}
+<line
+  x1="{{ x1 }}"
+  x2="{{ x2 }}"
+  y1="{{ y1 }}"
+  y2="{{ y2 }}"
+  class="{{ class }} stroke-current"
+  stroke-width="1px"
+  stroke-linecap="square"
+  vector-effect="non-scaling-stroke"
+/>
+{% endmacro %}
+
+<!-- prettier-ignore -->
+{% macro rect(x, y, w, h, class) %}
+<rect x="{{ x }}" y="{{ y }}" width="{{ w }}" height="{{ h }}" class="{{ class }} fill-current" />
+{% endmacro %}
+
+<!-- prettier-ignore -->
 {% block title %}{{ team.name }}{% endblock %}
 
 {% block content %}
@@ -20,6 +39,48 @@
     {% include "jump.js" %}
   </script>
 </form>
+
+<div class="mt-4 w-full max-w-full overflow-x-auto">
+  <svg
+    viewBox="0 {{ (ceiling + 1) * -1 }} {{ schedule.len() }} {{ ceiling - floor + 2 }}"
+    width="{{ schedule.len() * 8 }}"
+    height="{{ (ceiling - floor + 2) * 6 }}"
+    preserveAspectRatio="none"
+  >
+    <!-- prettier-ignore -->
+    {% for (record, entry) in schedule %}
+    {% if record.diff() == 0 %}
+      {% call line(loop.index0, loop.index, 0, 0, "text-black dark:text-white") %}
+    {% else if record.diff() > 0 %}
+      {% call rect(loop.index0, record.diff() * -1, 1, record.diff(), "text-green-200 dark:text-green-800") %}
+      {% call line(loop.index0, loop.index, record.diff() * -1, record.diff() * -1, "text-green-500") %}
+      {% call line(loop.index0, loop.index, 0, 0, "text-green-200 dark:text-green-800") %}
+    {% else %}
+      {% call rect(loop.index0, 0, 1, record.diff() * -1, "text-red-200 dark:text-red-800") %}
+      {% call line(loop.index0, loop.index, record.diff() * -1, record.diff() * -1, "text-red-500") %}
+      {% call line(loop.index0, loop.index, 0, 0, "text-red-200 dark:text-red-800") %}
+    {% endif %}
+    {% if loop.index0 > 0 %}
+      {% let (last_record, _) = schedule[loop.index0 - 1] %}
+      {% if record.diff() > 0 || last_record.diff() > 0 %}
+        {% call line(loop.index0, loop.index0, record.diff() * -1, last_record.diff() * -1, "text-green-500") %}
+      {% else if record.diff() < 0 || last_record.diff() < 0 %}
+        {% call line(loop.index0, loop.index0, record.diff() * -1, last_record.diff() * -1, "text-red-500") %}
+      {% endif %}
+    {% endif %}
+    {% match entry %}
+    {% when Some with (entry) %}
+    <a href="/game/{{ entry.id }}">
+      <!-- prettier-ignore -->
+      {% call rect(loop.index0, (ceiling + 1) * -1, 1, ceiling - floor + 2, "text-yellow-500 opacity-0 hover:opacity-20") %}
+    </a>
+    <!-- prettier-ignore -->
+    {% when None %}
+    {% call rect(loop.index0, (ceiling + 1) * -1, 1, ceiling - floor + 2, "text-yellow-500 opacity-0 hover:opacity-20") %}
+    {% endmatch %}
+    {% endfor %}
+  </svg>
+</div>
 
 <div class="space-y-4">
   {% if !standard_batting.rows.is_empty() %}
