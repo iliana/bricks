@@ -1,7 +1,7 @@
 use crate::names::{self, TeamName};
 use crate::routes::player::rocket_uri_macro_player;
 use crate::table::{Table, TotalsTable};
-use crate::{batting, pitching, routes::ResponseResult, summary};
+use crate::{batting, pitching, routes::ResponseResult, seasons::Season, summary};
 use anyhow::Result;
 use askama::Template;
 use rocket::response::content::Html;
@@ -9,14 +9,14 @@ use rocket::{get, uri};
 use uuid::Uuid;
 
 #[get("/team/<id>/<sim>/<season>")]
-pub fn team(id: Uuid, sim: &str, season: u16) -> ResponseResult<Option<Html<String>>> {
-    Ok(match load_team(id, sim, season)? {
+pub fn team(id: Uuid, sim: String, season: u16) -> ResponseResult<Option<Html<String>>> {
+    Ok(match load_team(id, Season { sim, season })? {
         Some(team) => Some(Html(team.render().map_err(anyhow::Error::from)?)),
         None => None,
     })
 }
 
-fn load_team(id: Uuid, sim: &str, season: u16) -> Result<Option<TeamPage>> {
+fn load_team(id: Uuid, season: Season) -> Result<Option<TeamPage>> {
     let name = match names::team_name(id)? {
         Some(name) => name,
         None => return Ok(None),
@@ -26,12 +26,8 @@ fn load_team(id: Uuid, sim: &str, season: u16) -> Result<Option<TeamPage>> {
         .all_seasons()?
         .into_iter()
         .map(|(the_season, team_id)| {
-            Ok(Season {
-                selected: if sim == the_season.sim && season == the_season.season {
-                    "selected"
-                } else {
-                    ""
-                },
+            Ok(SeasonEntry {
+                selected: if the_season == season { "selected" } else { "" },
                 display: the_season.to_string(),
                 path: uri!(team(
                     id = team_id,
@@ -43,7 +39,7 @@ fn load_team(id: Uuid, sim: &str, season: u16) -> Result<Option<TeamPage>> {
         })
         .collect::<Result<Vec<_>>>()?;
 
-    let summary = summary::team_summary(id, sim, season)?;
+    let summary = summary::team_summary(id, &season)?;
     if summary.is_empty() {
         return Ok(None);
     }
@@ -80,7 +76,7 @@ fn load_team(id: Uuid, sim: &str, season: u16) -> Result<Option<TeamPage>> {
 #[template(path = "team.html")]
 struct TeamPage {
     team: TeamName,
-    seasons: Vec<Season>,
+    seasons: Vec<SeasonEntry>,
     standard_batting: TotalsTable<{ batting::COLS + 1 }, { batting::COLS }>,
     postseason_batting: TotalsTable<{ batting::COLS + 1 }, { batting::COLS }>,
     standard_pitching: TotalsTable<{ pitching::COLS + 1 }, { pitching::COLS }>,
@@ -89,7 +85,7 @@ struct TeamPage {
 
 // =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=
 
-struct Season {
+struct SeasonEntry {
     path: String,
     selected: &'static str,
     display: String,

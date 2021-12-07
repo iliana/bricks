@@ -50,19 +50,18 @@ pub fn write_summary(
 }
 
 pub fn player_summary(player_id: Uuid) -> Result<Vec<Summary>> {
-    load_summary(player_id, true, |_, _| true)
+    load_summary(player_id, true, None)
 }
 
-pub fn team_summary(team_id: Uuid, sim: &str, season: u16) -> Result<Vec<Summary>> {
-    load_summary(team_id, false, move |prefix, the_sim| {
-        the_sim == sim && prefix.season == season
-    })
+pub fn team_summary(team_id: Uuid, season: &Season) -> Result<Vec<Summary>> {
+    load_summary(team_id, false, Some(season))
 }
 
-fn load_summary<F>(scan_id: Uuid, scan_id_is_player: bool, filter: F) -> Result<Vec<Summary>>
-where
-    F: Fn(KeyPrefix, &str) -> bool,
-{
+fn load_summary(
+    scan_id: Uuid,
+    scan_id_is_player: bool,
+    season_filter: Option<&Season>,
+) -> Result<Vec<Summary>> {
     let mut v = DB
         .open_tree(TREE)?
         .scan_prefix(scan_id.as_bytes())
@@ -76,13 +75,15 @@ where
                     (prefix.other_id, prefix.scan_id)
                 };
                 let sim = std::str::from_utf8(sim)?;
-                if !filter(*prefix, sim) {
-                    return Ok(None);
-                }
                 let season = Season {
                     sim: sim.into(),
                     season: prefix.season,
                 };
+                if let Some(season_filter) = season_filter {
+                    if season_filter != &season {
+                        return Ok(None);
+                    }
+                }
                 let value: Value = serde_json::from_slice(&value)?;
                 Ok(Some(Summary {
                     player_id: Uuid::from_bytes(player_id),
