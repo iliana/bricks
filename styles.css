@@ -27,8 +27,8 @@
   th[role="columnheader"]:not([data-sort-method="none"]) {
     @apply cursor-pointer;
 
-    &.text-right:before,
-    &:not(.text-right):after {
+    &.text-right::before,
+    &:not(.text-right)::after {
       @apply border-solid opacity-0 select-none;
       margin-top: 0.5em;
       border-width: 0.5em 0.3em 0;
@@ -40,22 +40,22 @@
       }
     }
 
-    &.text-right:hover:before,
-    &:not(.text-right):hover:after {
+    &.text-right:hover::before,
+    &:not(.text-right):hover::after {
       @apply opacity-50;
     }
 
-    &.text-right[aria-sort]:before,
-    &:not(.text-right)[aria-sort]:after {
+    &.text-right[aria-sort]::before,
+    &:not(.text-right)[aria-sort]::after {
       @apply opacity-100;
     }
 
-    &.text-right[aria-sort="ascending"]:before,
-    &:not(.text-right)[aria-sort="ascending"]:after {
+    &.text-right[aria-sort="ascending"]::before,
+    &:not(.text-right)[aria-sort="ascending"]::after {
       border-width: 0 0.3em 0.5em;
     }
 
-    &.text-right:before {
+    &.text-right::before {
       @apply float-left mr-1;
     }
 
