@@ -26,11 +26,11 @@ pub fn season_pitching(sim: String, season: u16) -> ResponseResult<Option<Html<S
 macro_rules! load {
     ($season:expr, $is_batting:expr, $tabler:expr, $filter:expr) => {{
         let seasons = Season::iter_recorded()?.collect::<Result<Vec<_>>>()?;
-
-        let summary = summary::season_summary(&$season)?;
-        if summary.is_empty() {
+        if !seasons.iter().any(|s| s == &$season) {
             return Ok(None);
         }
+
+        let summary = summary::season_summary(&$season)?;
 
         let mut ident_table = Table::new(
             [("Player", ""), ("Current Team", "Team")],

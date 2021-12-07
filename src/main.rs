@@ -23,6 +23,7 @@ use rocket::tokio::time::sleep;
 use rocket::{launch, routes, tokio};
 use serde::Deserialize;
 use sled::Db;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 use uuid::Uuid;
 
@@ -30,6 +31,8 @@ const API_BASE: &str = "https://api.blaseball.com";
 const CHRONICLER_BASE: &str = "https://api.sibr.dev/chronicler";
 const CONFIGS_BASE: &str = "https://blaseball-configs.s3.us-west-2.amazonaws.com";
 const SACHET_BASE: &str = "https://api.sibr.dev/eventually/sachet";
+
+static REBUILDING: AtomicBool = AtomicBool::new(false);
 
 // Used to mark certain schema changes that require reprocessing all games.
 const DB_MARKERS: &[&str] = &[
@@ -44,6 +47,7 @@ const DB_MARKERS: &[&str] = &[
     "marker_common_names_tree",
     "marker_recorded_seasons_tree",
     "marker_all_team_summaries_v3",
+    "marker_test_rebuild",
 ];
 const CLEAR_ON_MARKER: &[&str] = &[summary::TREE, summary::SEASON_TREE];
 const OLD_TREES: &[&str] = &[];
@@ -86,6 +90,7 @@ async fn start_task() -> Result<()> {
     for marker in DB_MARKERS.iter().rev() {
         if !DB.contains_key(marker)? {
             force = true;
+            REBUILDING.store(true, Ordering::Relaxed);
             for tree in CLEAR_ON_MARKER {
                 DB.drop_tree(tree)?;
             }
@@ -106,6 +111,8 @@ async fn start_task() -> Result<()> {
             }
         }
     }
+
+    REBUILDING.store(false, Ordering::Relaxed);
 
     for marker in DB_MARKERS {
         DB.insert(marker, "")?;
@@ -190,7 +197,21 @@ fn rocket() -> _ {
         .attach(AdHoc::on_response("HTML minifier", |_, response| {
             Box::pin(async move {
                 if response.content_type() == Some(ContentType::HTML) {
-                    if let Ok(mut html) = response.body_mut().take().to_bytes().await {
+                    if let Ok(html) = response.body_mut().take().to_string().await {
+                        const NEEDLE: &str = "<p data-rebuild class=\"hidden";
+                        const UNHIDE: &[u8] = b"<p data-rebuild class=\"      ";
+                        const _: () = assert!(NEEDLE.len() == UNHIDE.len());
+
+                        let rebuild_pos = html.find(NEEDLE);
+                        let mut html = html.into_bytes();
+
+                        if REBUILDING.load(Ordering::Relaxed) {
+                            if let Some(pos) = rebuild_pos {
+                                (&mut html[pos..(pos + UNHIDE.len())]).copy_from_slice(UNHIDE);
+                            }
+                        }
+                        response.set_sized_body(html.len(), std::io::Cursor::new(html.clone()));
+
                         match minify_html_onepass::with_friendly_error(
                             &mut html,
                             &minify_html_onepass::Cfg {
@@ -200,7 +221,7 @@ fn rocket() -> _ {
                         ) {
                             Ok(len) => {
                                 html.truncate(len);
-                                response.set_sized_body(len, std::io::Cursor::new(html));
+                                response.set_sized_body(html.len(), std::io::Cursor::new(html));
                             }
                             Err(error) => log::error!("while minifying HTML: {:?}", error),
                         }

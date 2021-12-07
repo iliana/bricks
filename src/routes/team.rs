@@ -23,11 +23,11 @@ fn load_team(id: Uuid, season: Season) -> Result<Option<TeamPage>> {
     };
 
     let seasons = name.all_seasons()?;
-
-    let summary = summary::team_summary(id, &season)?;
-    if summary.is_empty() {
+    if !seasons.iter().any(|(s, _)| s == &season) {
         return Ok(None);
     }
+
+    let summary = summary::team_summary(id, &season)?;
 
     macro_rules! tabler {
         ($tabler:expr, $filter:expr) => {{
