@@ -36,7 +36,7 @@ px-2
 
 {% macro table_inner(table) %}
 {% for row in table.rows %}
-<tr class="hover:bg-yellow-100 dark:hover:bg-yellow-900">
+<tr class="bg-yellow-500 bg-opacity-0 hover:bg-opacity-30">
   {% for value in row.data %}
   <td class="{% call cellspacing() %} {{ table.col_class[loop.index0] }} {% if loop.first %}{{ row.class }}{% endif %}">
     <!-- prettier-ignore -->
@@ -70,7 +70,7 @@ px-2
     {% call thead(table) %}
     <tbody>
       {% call table_inner(table) %} {% let label_width = table.header.len() - table.totals.len() %}
-      <tr class="hover:bg-yellow-100 dark:hover:bg-yellow-900 font-bold" data-sort-method="none">
+      <tr class="bg-yellow-500 bg-opacity-0 hover:bg-opacity-30 font-bold" data-sort-method="none">
         {% if label_width > 0 %}
         <th colspan="{{ label_width }}" class="text-left">{{ total_label }}</th>
         {% endif %}

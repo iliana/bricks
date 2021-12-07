@@ -82,7 +82,7 @@ struct TeamPage {
     team: TeamName,
     season: Season,
     seasons: Vec<(Season, Uuid)>,
-    schedule: Vec<(Record, Option<Entry>)>,
+    schedule: Vec<(Record, Entry)>,
     ceiling: i32,
     floor: i32,
     standard_batting: TotalsTable<{ batting::COLS + 1 }, { batting::COLS }>,

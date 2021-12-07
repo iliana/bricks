@@ -32,7 +32,7 @@ pub struct Entry {
     pub opponent_score: u16,
 }
 
-pub fn schedule(team: Uuid, season: &Season) -> Result<Vec<(Record, Option<Entry>)>> {
+pub fn schedule(team: Uuid, season: &Season) -> Result<Vec<(Record, Entry)>> {
     let tree = DB.open_tree(TREE)?;
     let mut search_key =
         Vec::with_capacity(season.sim.len() + size_of_val(&season.season) + size_of_val(&team));
@@ -44,15 +44,12 @@ pub fn schedule(team: Uuid, season: &Season) -> Result<Vec<(Record, Option<Entry
     for row in tree.scan_prefix(&search_key) {
         let (_, value) = row?;
         let entry: Entry = serde_json::from_slice(&value)?;
-        while v.len() < usize::from(entry.day) {
-            v.push((record, None));
-        }
         if entry.won {
             record.wins += 1;
         } else {
             record.losses += 1;
         }
-        v.push((record, Some(entry)));
+        v.push((record, entry));
     }
     Ok(v)
 }

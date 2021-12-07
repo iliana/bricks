@@ -68,16 +68,10 @@
         {% call line(loop.index0, loop.index0, record.diff() * -1, last_record.diff() * -1, "text-red-500") %}
       {% endif %}
     {% endif %}
-    {% match entry %}
-    {% when Some with (entry) %}
     <a href="/game/{{ entry.id }}">
       <!-- prettier-ignore -->
-      {% call rect(loop.index0, (ceiling + 1) * -1, 1, ceiling - floor + 2, "text-yellow-500 opacity-0 hover:opacity-20") %}
+      {% call rect(loop.index0, (ceiling + 1) * -1, 1, ceiling - floor + 2, "text-yellow-500 opacity-0 hover:opacity-30") %}
     </a>
-    <!-- prettier-ignore -->
-    {% when None %}
-    {% call rect(loop.index0, (ceiling + 1) * -1, 1, ceiling - floor + 2, "text-yellow-500 opacity-0 hover:opacity-20") %}
-    {% endmatch %}
     {% endfor %}
   </svg>
 </div>
