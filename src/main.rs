@@ -34,22 +34,9 @@ const SACHET_BASE: &str = "https://api.sibr.dev/eventually/sachet";
 
 static REBUILDING: AtomicBool = AtomicBool::new(false);
 
-// Used to mark certain schema changes that require reprocessing all games.
-const DB_MARKERS: &[&str] = &[
-    "marker_stats_games_played",
-    "marker_combined_names",
-    "marker_split_games_played",
-    "marker_clear_on_marker",
-    "marker_force_emoji_representation",
-    "marker_summary_first_day",
-    "marker_shutouts_fixed",
-    "marker_postseason_99_fix",
-    "marker_common_names_tree",
-    "marker_recorded_seasons_tree",
-    "marker_all_team_summaries_v3",
-    "marker_test_rebuild",
-];
-const CLEAR_ON_MARKER: &[&str] = &[summary::TREE, summary::SEASON_TREE];
+// Increment this if you need to force a rebuild.
+const DB_VERSION: &[u8] = &[0];
+const CLEAR_ON_REBUILD: &[&str] = &[summary::TREE, summary::SEASON_TREE];
 const OLD_TREES: &[&str] = &[];
 
 lazy_static::lazy_static! {
@@ -86,17 +73,26 @@ async fn process_game_or_log(season: Season, id: Uuid, force: bool) {
 }
 
 async fn start_task() -> Result<()> {
-    let mut force = false;
-    for marker in DB_MARKERS.iter().rev() {
-        if !DB.contains_key(marker)? {
-            force = true;
+    let force = {
+        let version = DB.get("version")?;
+        if version.is_none() {
+            DB.clear()?;
+        }
+        if version.as_ref().map_or(false, |v| v == DB_VERSION) {
+            false
+        } else {
+            log::info!(
+                "version {:?} != {:?}, rebuilding",
+                version,
+                Some(DB_VERSION)
+            );
             REBUILDING.store(true, Ordering::Relaxed);
-            for tree in CLEAR_ON_MARKER {
+            for tree in CLEAR_ON_REBUILD {
                 DB.drop_tree(tree)?;
             }
-            break;
+            true
         }
-    }
+    };
 
     seasons::load().await?;
 
@@ -114,8 +110,10 @@ async fn start_task() -> Result<()> {
 
     REBUILDING.store(false, Ordering::Relaxed);
 
-    for marker in DB_MARKERS {
-        DB.insert(marker, "")?;
+    DB.insert("version", DB_VERSION)?;
+    DB.flush_async().await?;
+    if force {
+        log::info!("database rebuilt, version {:?}", DB_VERSION);
     }
 
     Ok(())
@@ -148,13 +146,14 @@ async fn update_task() -> Result<()> {
         process_game_or_log(season.clone(), game_id, false).await;
     }
 
+    DB.flush_async().await?;
+
     Ok(())
 }
 
 #[launch]
 fn rocket() -> _ {
     dotenv::dotenv().ok();
-    lazy_static::initialize(&DB);
 
     rocket::build()
         .mount(
