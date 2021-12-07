@@ -4,11 +4,26 @@ pub mod player;
 pub mod season;
 pub mod team;
 
+use crate::seasons::Season;
+use anyhow::Result;
 use rocket::http::{uri::Origin, ContentType};
 use rocket::response::{status::BadRequest, Debug, Redirect};
 use rocket::{get, Either};
 
-type ResponseResult<T> = Result<T, Debug<anyhow::Error>>;
+type ResponseResult<T> = std::result::Result<T, Debug<anyhow::Error>>;
+
+#[get("/")]
+pub fn index() -> ResponseResult<Option<Redirect>> {
+    fn last_season() -> Result<Option<Season>> {
+        let mut seasons = Season::iter_recorded()?.collect::<Result<Vec<_>>>()?;
+        seasons.sort_unstable();
+        Ok(seasons.into_iter().rev().next())
+    }
+
+    Ok(last_season()
+        .map_err(anyhow::Error::from)?
+        .map(|season| Redirect::to(season.uri(&true))))
+}
 
 macro_rules! asset {
     ($path:expr) => {

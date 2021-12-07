@@ -165,6 +165,7 @@ fn rocket() -> _ {
                 routes::tablesort_number,
                 routes::season::season_batting,
                 routes::season::season_pitching,
+                routes::index,
             ],
         )
         .attach(AdHoc::on_liftoff("Background tasks", |_rocket| {
