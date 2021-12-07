@@ -51,6 +51,7 @@ fn load_player(id: Uuid) -> Result<Option<PlayerPage>> {
 
     Ok(Some(PlayerPage {
         name,
+        id,
         standard_batting: tabler!(batting::table, |s| !s.is_postseason && s.stats.is_batting()),
         postseason_batting: tabler!(batting::table, |s| s.is_postseason && s.stats.is_batting()),
         standard_pitching: tabler!(pitching::table, |s| !s.is_postseason
@@ -64,6 +65,7 @@ fn load_player(id: Uuid) -> Result<Option<PlayerPage>> {
 #[template(path = "player.html")]
 struct PlayerPage {
     name: String,
+    id: Uuid,
     standard_batting: TotalsTable<{ batting::COLS + 2 }, { batting::COLS }>,
     postseason_batting: TotalsTable<{ batting::COLS + 2 }, { batting::COLS }>,
     standard_pitching: TotalsTable<{ pitching::COLS + 2 }, { pitching::COLS }>,
