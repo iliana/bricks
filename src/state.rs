@@ -195,7 +195,9 @@ impl State {
             }
             9 => checkdesc!(self.home_run(event)?),
             10 => {
-                if desc.ends_with("advances on the sacrifice.") {
+                if desc.ends_with("advances on the sacrifice.")
+                    || desc.ends_with("tags up and scores!")
+                {
                     self.sac(event)?;
                 } else {
                     checkdesc!(self.hit(event)?);
