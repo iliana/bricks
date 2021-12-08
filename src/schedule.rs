@@ -107,9 +107,9 @@ pub async fn load(season: &Season, start_day: u16, end_day: u16) -> Result<Vec<U
     let mut v = Vec::new();
     for (day, games) in cached {
         for game in games {
-            for team in [game.away_team, game.home_team] {
-                v.push(game.id);
+            v.push(game.id);
 
+            for team in [game.away_team, game.home_team] {
                 let mut key = Vec::with_capacity(
                     season.sim.len()
                         + size_of_val(&season.season)
