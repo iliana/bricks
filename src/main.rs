@@ -111,7 +111,6 @@ async fn start_task() -> Result<()> {
     REBUILDING.store(false, Ordering::Relaxed);
 
     DB.insert("version", DB_VERSION)?;
-    DB.flush_async().await?;
     if force {
         log::info!("database rebuilt, version {:?}", DB_VERSION);
     }
@@ -145,8 +144,6 @@ async fn update_task() -> Result<()> {
     for game_id in schedule::load(&season, now.day.max(1) - 1, now.day).await? {
         process_game_or_log(season.clone(), game_id, false).await;
     }
-
-    DB.flush_async().await?;
 
     Ok(())
 }
