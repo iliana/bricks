@@ -41,7 +41,7 @@ pub fn table(iter: impl Iterator<Item = Stats>) -> TotalsTable<COLS, COLS> {
     table.with_totals(build_row(totals))
 }
 
-fn build_row(stats: Stats) -> [String; COLS] {
+pub fn build_row(stats: Stats) -> [String; COLS] {
     row![
         stats.games_batted,
         stats.plate_appearances,

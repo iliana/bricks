@@ -18,6 +18,8 @@ pub fn write_summary(
     game: &Game,
 ) -> ConflictableTransactionResult<(), serde_json::Error> {
     for team in game.teams() {
+        let mut totals = Stats::default();
+
         for (id, stats) in &team.stats {
             for key in [
                 build_key(team.id, *id, &game.season, game.is_postseason),
@@ -38,7 +40,7 @@ pub fn write_summary(
             }
 
             if !game.is_postseason {
-                let key = build_season_key(&game.season, *id);
+                let key = build_season_key(&game.season, b'p', *id);
                 let mut value = match season_tree.get(&key)? {
                     None => SeasonValue::default(),
                     Some(value) => serde_json::from_slice(&value)
@@ -57,7 +59,33 @@ pub fn write_summary(
                         .as_slice(),
                 )?;
             }
+
+            totals += *stats;
         }
+
+        totals.games_batted = 1;
+        totals.games_pitched = 1;
+        let key = build_season_key(
+            &game.season,
+            if game.is_postseason { b'u' } else { b't' },
+            team.id,
+        );
+        let mut value = match season_tree.get(&key)? {
+            None => SeasonValue::default(),
+            Some(value) => {
+                serde_json::from_slice(&value).map_err(ConflictableTransactionError::Abort)?
+            }
+        };
+        value.stats += totals;
+        value.team_id = team.id;
+        value.team_abbr = team.name.shorthand.clone();
+        value.name = team.name.nickname.clone();
+        season_tree.insert(
+            key.as_slice(),
+            serde_json::to_vec(&value)
+                .map_err(ConflictableTransactionError::Abort)?
+                .as_slice(),
+        )?;
     }
 
     Ok(())
@@ -173,12 +201,22 @@ pub struct SeasonSummary {
     pub stats: Stats,
 }
 
-pub fn season_summary(season: &Season) -> Result<Vec<SeasonSummary>> {
+pub fn season_player_summary(season: &Season) -> Result<Vec<SeasonSummary>> {
+    season_summary(season, b'p')
+}
+
+pub fn season_team_summary(season: &Season) -> Result<Vec<SeasonSummary>> {
+    season_summary(season, b't')
+}
+
+fn season_summary(season: &Season, kind: u8) -> Result<Vec<SeasonSummary>> {
     let mut v = Vec::new();
     let tree = DB.open_tree(SEASON_TREE)?;
-    let mut scan_key = Vec::with_capacity(season.sim.len() + size_of_val(&season.season));
+    let mut scan_key =
+        Vec::with_capacity(season.sim.len() + size_of_val(&season.season) + size_of_val(&kind));
     scan_key.extend_from_slice(season.sim.as_bytes());
     scan_key.extend_from_slice(&season.season.to_ne_bytes());
+    scan_key.push(kind);
     for row in tree.scan_prefix(scan_key) {
         let (key, value) = row?;
         let id = Uuid::from_slice(&key[key.len() - 16..])?;
@@ -195,13 +233,24 @@ pub fn season_summary(season: &Season) -> Result<Vec<SeasonSummary>> {
     Ok(v)
 }
 
-fn build_season_key(season: &Season, player_id: Uuid) -> Vec<u8> {
+pub fn team_totals(season: &Season, team_id: Uuid, is_postseason: bool) -> Result<Option<Stats>> {
+    let tree = DB.open_tree(SEASON_TREE)?;
+    let key = build_season_key(season, if is_postseason { b'u' } else { b't' }, team_id);
+    let value: SeasonValue = match tree.get(&key)? {
+        Some(value) => serde_json::from_slice(&value)?,
+        None => return Ok(None),
+    };
+    Ok(Some(value.stats))
+}
+
+fn build_season_key(season: &Season, kind: u8, id: Uuid) -> Vec<u8> {
     let mut key = Vec::with_capacity(
-        season.sim.len() + size_of_val(&season.season) + size_of_val(&player_id),
+        season.sim.len() + size_of_val(&season.season) + size_of_val(&kind) + size_of_val(&id),
     );
     key.extend_from_slice(season.sim.as_bytes());
     key.extend_from_slice(&season.season.to_ne_bytes());
-    key.extend_from_slice(player_id.as_bytes());
+    key.push(kind);
+    key.extend_from_slice(id.as_bytes());
     key
 }
 

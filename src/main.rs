@@ -35,7 +35,7 @@ const SACHET_BASE: &str = "https://api.sibr.dev/eventually/sachet";
 static REBUILDING: AtomicBool = AtomicBool::new(false);
 
 // Increment this if you need to force a rebuild.
-const DB_VERSION: &[u8] = &[0];
+const DB_VERSION: &[u8] = &[1];
 const CLEAR_ON_REBUILD: &[&str] = &[summary::TREE, summary::SEASON_TREE];
 const OLD_TREES: &[&str] = &[];
 
@@ -161,14 +161,16 @@ fn rocket() -> _ {
                 routes::debug::debug,
                 routes::debug::errors,
                 routes::game::game,
+                routes::index,
                 routes::jump,
                 routes::player::player,
-                routes::team::team,
+                routes::season::season_player_batting,
+                routes::season::season_player_pitching,
+                routes::season::season_team_batting,
+                routes::season::season_team_pitching,
                 routes::tablesort,
                 routes::tablesort_number,
-                routes::season::season_batting,
-                routes::season::season_pitching,
-                routes::index,
+                routes::team::team,
             ],
         )
         .attach(AdHoc::on_liftoff("Background tasks", |_rocket| {

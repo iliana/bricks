@@ -22,7 +22,7 @@ pub fn index() -> ResponseResult<Option<Redirect>> {
 
     Ok(last_season()
         .map_err(anyhow::Error::from)?
-        .map(|season| Redirect::to(season.uri(&true))))
+        .map(|season| Redirect::to(season.uri(&true, &true))))
 }
 
 macro_rules! asset {

@@ -7,7 +7,9 @@
 <form action="/jump" method="get" class="mt-4">
   <select autocomplete="off" class="form-select bg-transparent md:text-lg lg:text-xl" name="path">
     {% for the_season in seasons %}
-    <option value="{{ the_season.uri(is_batting) }}" {{ the_season.selected(season) }}>{{ the_season }}</option>
+    <option value="{{ the_season.uri(is_batting, is_players) }}" {{ the_season.selected(season) }}>
+      {{ the_season }}
+    </option>
     {% endfor %}
   </select>
   <noscript>
@@ -23,15 +25,32 @@
   <li class="inline">
     <a
       class="{% if is_batting %}text-black dark:text-white no-underline{% endif %}"
-      href="/batting/{{ season.sim }}/{{ season.season }}"
+      href="/batting{% if !is_players %}/team{% endif %}/{{ season.sim }}/{{ season.season }}"
       >Batting</a
     >
   </li>
   <li class="inline">
     <a
       class="{% if !is_batting %}text-black dark:text-white no-underline{% endif %}"
-      href="/pitching/{{ season.sim }}/{{ season.season }}"
+      href="/pitching{% if !is_players %}/team{% endif %}/{{ season.sim }}/{{ season.season }}"
       >Pitching</a
+    >
+  </li>
+</ul>
+
+<ul class="font-semibold text-base md:text-lg space-x-4 mt-0.5 md:mt-1 lg:mt-1.5">
+  <li class="inline">
+    <a
+      class="{% if is_players %}text-black dark:text-white no-underline{% endif %}"
+      href="/{{ what|lower }}/{{ season.sim }}/{{ season.season }}"
+      >Players</a
+    >
+  </li>
+  <li class="inline">
+    <a
+      class="{% if !is_players %}text-black dark:text-white no-underline{% endif %}"
+      href="/{{ what|lower }}/team/{{ season.sim }}/{{ season.season }}"
+      >Teams</a
     >
   </li>
 </ul>

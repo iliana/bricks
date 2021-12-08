@@ -45,34 +45,36 @@ fn load_team(id: Uuid, season: Season) -> Result<Option<TeamPage>> {
     let summary = summary::team_summary(id, &season)?;
 
     macro_rules! tabler {
-        ($tabler:expr, $filter:expr) => {{
+        ($tabler:ident, $is_postseason:expr, $filter:expr) => {{
             let mut ident_table = Table::new([("Player", "")], "text-left", "none");
             for row in summary.iter().filter($filter) {
                 let player = names::player_name(row.player_id)?.unwrap_or_default();
                 ident_table.push([player]);
                 ident_table.set_href(0, uri!(player(id = row.player_id)));
             }
-            let stats_table = $tabler(summary.iter().filter($filter).map(|row| row.stats));
+            let stats_table = $tabler::table(summary.iter().filter($filter).map(|row| row.stats));
+            let totals = summary::team_totals(&season, id, $is_postseason)?
+                .map($tabler::build_row)
+                .unwrap_or(stats_table.totals);
             TotalsTable {
                 table: stats_table.table.insert(0, ident_table),
-                totals: stats_table.totals,
+                totals,
             }
         }};
     }
 
     Ok(Some(TeamPage {
         team: name,
-        season,
         seasons,
         schedule,
         ceiling,
         floor,
-        standard_batting: tabler!(batting::table, |s| !s.is_postseason && s.stats.is_batting()),
-        postseason_batting: tabler!(batting::table, |s| s.is_postseason && s.stats.is_batting()),
-        standard_pitching: tabler!(pitching::table, |s| !s.is_postseason
+        standard_batting: tabler!(batting, false, |s| !s.is_postseason && s.stats.is_batting()),
+        postseason_batting: tabler!(batting, true, |s| s.is_postseason && s.stats.is_batting()),
+        standard_pitching: tabler!(pitching, false, |s| !s.is_postseason
             && s.stats.is_pitching()),
-        postseason_pitching: tabler!(pitching::table, |s| s.is_postseason
-            && s.stats.is_pitching()),
+        postseason_pitching: tabler!(pitching, true, |s| s.is_postseason && s.stats.is_pitching()),
+        season,
     }))
 }
 

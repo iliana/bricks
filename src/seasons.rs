@@ -1,4 +1,7 @@
-use crate::routes::season::{rocket_uri_macro_season_batting, rocket_uri_macro_season_pitching};
+use crate::routes::season::{
+    rocket_uri_macro_season_player_batting, rocket_uri_macro_season_player_pitching,
+    rocket_uri_macro_season_team_batting, rocket_uri_macro_season_team_pitching,
+};
 use crate::routes::team::rocket_uri_macro_team;
 use crate::{CLIENT, CONFIGS_BASE, DB};
 use anyhow::{Context, Result};
@@ -115,11 +118,20 @@ impl Season {
         }
     }
 
-    pub fn uri(&self, is_batting: &bool) -> String {
-        if *is_batting {
-            uri!(season_batting(sim = &self.sim, season = self.season))
+    pub fn uri(&self, is_batting: &bool, is_players: &bool) -> String {
+        if *is_players {
+            if *is_batting {
+                uri!(season_player_batting(sim = &self.sim, season = self.season))
+            } else {
+                uri!(season_player_pitching(
+                    sim = &self.sim,
+                    season = self.season
+                ))
+            }
+        } else if *is_batting {
+            uri!(season_team_batting(sim = &self.sim, season = self.season))
         } else {
-            uri!(season_pitching(sim = &self.sim, season = self.season))
+            uri!(season_team_pitching(sim = &self.sim, season = self.season))
         }
         .to_string()
     }
