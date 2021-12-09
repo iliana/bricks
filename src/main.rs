@@ -96,8 +96,7 @@ async fn start_task() -> Result<()> {
 
     seasons::load().await?;
 
-    for season in Season::iter_known()? {
-        let season = season?;
+    for season in Season::known()? {
         if season.sim == "thisidisstaticyo" || season.sim == "gamma4" {
             continue;
         }

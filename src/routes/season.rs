@@ -41,7 +41,7 @@ pub fn season_team_pitching(sim: String, season: u16) -> ResponseResult<Option<H
 
 macro_rules! load {
     ($season:expr, $summary_func:ident, $is_batting:expr, $tabler:expr, $filter:expr) => {{
-        let seasons = Season::iter_recorded()?.collect::<Result<Vec<_>>>()?;
+        let seasons = Season::recorded()?;
         if !seasons.iter().any(|s| s == &$season) {
             return Ok(None);
         }

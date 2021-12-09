@@ -64,26 +64,32 @@ pub struct Season {
 }
 
 impl Season {
-    fn iter_inner(tree: &'static str) -> Result<impl Iterator<Item = Result<Season>>> {
-        Ok(DB.open_tree(tree)?.iter().map(|res| {
-            res.map_err(anyhow::Error::from).and_then(|(key, _)| {
-                let (sim, season): (&[u8], LayoutVerified<&[u8], U16<BigEndian>>) =
-                    LayoutVerified::new_unaligned_from_suffix(&*key)
-                        .context("invalid key format")?;
-                Ok(Season {
-                    sim: std::str::from_utf8(sim)?.to_owned(),
-                    season: season.get(),
+    fn read_from_tree(tree: &'static str) -> Result<Vec<Season>> {
+        let mut v = DB
+            .open_tree(tree)?
+            .iter()
+            .map(|res| {
+                res.map_err(anyhow::Error::from).and_then(|(key, _)| {
+                    let (sim, season): (&[u8], LayoutVerified<&[u8], U16<BigEndian>>) =
+                        LayoutVerified::new_unaligned_from_suffix(&*key)
+                            .context("invalid key format")?;
+                    Ok(Season {
+                        sim: std::str::from_utf8(sim)?.to_owned(),
+                        season: season.get(),
+                    })
                 })
             })
-        }))
+            .collect::<Result<Vec<_>>>()?;
+        v.sort_unstable();
+        Ok(v)
     }
 
-    pub fn iter_known() -> Result<impl Iterator<Item = Result<Season>>> {
-        Season::iter_inner(NAME_TREE)
+    pub fn known() -> Result<Vec<Season>> {
+        Season::read_from_tree(NAME_TREE)
     }
 
-    pub fn iter_recorded() -> Result<impl Iterator<Item = Result<Season>>> {
-        Season::iter_inner(RECORDED_TREE)
+    pub fn recorded() -> Result<Vec<Season>> {
+        Season::read_from_tree(RECORDED_TREE)
     }
 
     pub fn era_name(&self) -> Result<Option<String>> {
