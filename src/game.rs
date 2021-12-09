@@ -161,14 +161,17 @@ impl<'a> IntoIterator for &'a Game {
 }
 
 #[derive(Debug, Default, Deserialize, Serialize)]
+#[serde(default)]
 pub struct Team {
     pub id: Uuid,
     #[serde(flatten)]
     pub name: TeamName,
+    pub won: bool,
 
     pub player_names: HashMap<Uuid, String>,
     pub lineup: Vec<Vec<Uuid>>,
     pub pitchers: Vec<Uuid>,
+    pub pitcher_of_record: Uuid,
 
     pub stats: IndexMap<Uuid, Stats>,
     pub inning_runs: BTreeMap<u16, u16>,
@@ -230,6 +233,8 @@ pub struct Stats {
     pub left_on_base: usize,
 
     // Pitching stats
+    pub wins: u32,
+    pub losses: u32,
     pub games_started: u32,
     pub games_finished: u32,
     pub complete_games: u32,
@@ -290,6 +295,10 @@ impl Stats {
 
     pub fn total_bases(&self) -> u32 {
         self.singles + 2 * self.doubles + 3 * self.triples + 4 * self.home_runs
+    }
+
+    pub fn win_loss_percentage(&self) -> Pct<3> {
+        Pct::new(self.wins, self.wins + self.losses)
     }
 
     pub fn earned_run_average(&self) -> Pct<2> {

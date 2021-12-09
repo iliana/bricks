@@ -4,6 +4,7 @@ use crate::{seasons::Season, team};
 use anyhow::{bail, ensure, Context, Result};
 use indexmap::IndexMap;
 use serde::Serialize;
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -14,12 +15,15 @@ pub struct State {
     game_finished: bool,
     inning: u16,
     top_of_inning: bool,
+    #[serde(skip)]
+    last_runs_cmp: Ordering,
     half_inning_outs: u16,
     at_bat: Option<Uuid>,
     last_fielded_out: Option<(u16, Uuid)>,
     rbi_credit: Option<Uuid>,
     // key: runner id, value: (pitcher to charge earned run, minimum base)
     on_base: IndexMap<Uuid, (Uuid, u16)>,
+    #[serde(skip)]
     on_base_start_of_play: IndexMap<Uuid, (Uuid, u16)>,
 }
 
@@ -46,6 +50,7 @@ impl State {
             game_finished: false,
             inning: 1,
             top_of_inning: true,
+            last_runs_cmp: Ordering::Equal,
             half_inning_outs: 0,
             at_bat: None,
             last_fielded_out: None,
@@ -59,7 +64,45 @@ impl State {
         ensure!(self.game_finished, "game incomplete");
         self.ensure_pitchers_known()?;
         let mut game = self.game;
+        ensure!(game.away.won ^ game.home.won, "winner mismatch");
+
         for team in game.teams_mut() {
+            if team.pitcher_of_record == Uuid::default() {
+                // the starting pitcher was cleared as the pitcher of record because they pitched
+                // less than 5 innings, making them ineligible for the win ...
+                if team.won {
+                    // ... but no one else became the pitcher of record. choose the relief pitcher
+                    // who pitched the longest i guess.
+                    team.pitcher_of_record = team
+                        .pitchers
+                        .iter()
+                        .copied()
+                        .skip(1)
+                        .rev()
+                        .max_by_key(|pitcher| {
+                            team.stats
+                                .get(pitcher)
+                                .copied()
+                                .unwrap_or_default()
+                                .outs_recorded
+                        })
+                        .unwrap_or_default();
+                } else {
+                    // ... but because their team lost and no other pitcher became the new pitcher
+                    // of record, they're the losing pitcher.
+                    team.pitcher_of_record = team.pitchers.first().copied().unwrap_or_default();
+                }
+            }
+            ensure!(
+                team.pitcher_of_record != Uuid::default(),
+                "placeholder pitcher ID listed as winning or losing pitcher"
+            );
+            if team.won {
+                team.stats.entry(team.pitcher_of_record).or_default().wins = 1;
+            } else {
+                team.stats.entry(team.pitcher_of_record).or_default().losses = 1;
+            }
+
             ensure!(
                 team.stats
                     .values()
@@ -86,6 +129,7 @@ impl State {
                 }
             }
         }
+
         Ok(game)
     }
 
@@ -147,6 +191,18 @@ impl State {
                 self.ensure_pitchers_known()?;
                 if let Some((name, _)) = desc.rsplit_once(" is now pitching for the ") {
                     ensure!(event.player_tags.len() == 1, "invalid player tag count");
+
+                    // starting pitchers must pitch 5 innings to be credited for the win. clear the
+                    // pitcher of record if they are not eligible to record the win; if the losing
+                    // team's pitcher is still cleared by the end of the game, fill it back in with
+                    // the starting pitcher for the losing team.
+                    let old_pitcher = self.pitcher();
+                    if self.defense().pitchers.len() == 1
+                        && self.defense_stats(old_pitcher).outs_recorded < 15
+                    {
+                        self.defense_mut().pitcher_of_record = Uuid::default();
+                    }
+
                     self.defense_mut().pitchers.push(event.player_tags[0]);
                     self.defense_mut()
                         .player_names
@@ -372,10 +428,17 @@ impl State {
             }
             137 => {} // player hatched
             209 => {} // score message
-            214 => {} // team collected a Win
-            215 => {
-                // team collected a Win, but it's the postseason
-                self.game.is_postseason = true;
+            214 | 215 => {
+                checkdesc!(desc.ends_with("collected a Win."));
+                ensure!(event.team_tags.len() == 1, "invalid team tag count");
+                for team in self.game.teams_mut() {
+                    if team.id == event.team_tags[0] {
+                        team.won = true;
+                    }
+                }
+                if event.ty == 215 {
+                    self.game.is_postseason = true;
+                }
             }
             216 => {} // game over
             223 => {} // weather is happening
@@ -427,6 +490,7 @@ impl State {
                 }
             }
 
+            self.last_runs_cmp = self.runs_cmp();
             self.on_base_start_of_play = self.on_base.clone();
         }
 
@@ -606,7 +670,19 @@ impl State {
             .entry(pitcher)
             .or_default()
             .earned_runs += 1;
+
+        let runs_cmp = self.runs_cmp();
+        if runs_cmp != self.last_runs_cmp && runs_cmp != Ordering::Equal {
+            // the offense took the lead; set new pitchers of record
+            self.offense_mut().pitcher_of_record = *self.offense().pitchers.last().unwrap();
+            self.defense_mut().pitcher_of_record = pitcher;
+        }
+
         Ok(())
+    }
+
+    fn runs_cmp(&self) -> Ordering {
+        self.game.away.runs().cmp(&self.game.home.runs())
     }
 
     fn walk(&mut self, event: &GameEvent) -> Result<bool> {
