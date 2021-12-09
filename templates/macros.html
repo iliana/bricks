@@ -15,6 +15,7 @@ px-2
 {% macro thead(table) %}
 <thead>
   <tr class="text-xs md:text-sm">
+    <!-- prettier-ignore -->
     {% for value in table.header %}
     {% if table.not_skip(loop.index0) %}
     <th
@@ -29,6 +30,7 @@ px-2
       <abbr title="{{ value }}">{{ abbr }}</abbr>
       {% endif %}
     </th>
+    <!-- prettier-ignore -->
     {% endif %}
     {% endfor %}
   </tr>
@@ -39,6 +41,7 @@ px-2
 {% macro table_inner(table) %}
 {% for row in table.rows %}
 <tr class="bg-yellow-500 bg-opacity-0 hover:bg-opacity-30">
+  <!-- prettier-ignore -->
   {% for value in row.data %}
   {% if table.not_skip(loop.index0) %}
   <td class="{% call cellspacing() %} {{ table.col_class[loop.index0] }} {% if loop.first %}{{ row.class }}{% endif %}">
@@ -48,6 +51,7 @@ px-2
     <a href="{{ href }}">{% endif %}{{ value }}{% if !href.is_empty() %}</a>
     {% endif %}
   </td>
+  <!-- prettier-ignore -->
   {% endif %}
   {% endfor %}
 </tr>
