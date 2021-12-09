@@ -67,6 +67,7 @@ fn load_player(id: Uuid) -> Result<Option<PlayerPage>> {
         postseason_pitching: tabler!(pitching, |s| s.is_postseason && s.stats.is_pitching()),
     };
     page.postseason_batting.table.skip("OPS+");
+    page.postseason_pitching.table.skip("ERA+");
     Ok(Some(page))
 }
 

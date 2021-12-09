@@ -296,6 +296,11 @@ impl Stats {
         Pct::new(self.earned_runs * 27, self.outs_recorded)
     }
 
+    pub fn era_plus(&self, league: Stats) -> Pct<0> {
+        let pct = league.earned_run_average().0 / self.earned_run_average().0;
+        Pct(pct * 100.into())
+    }
+
     pub fn innings_pitched(&self) -> String {
         format!("{}.{}", self.outs_recorded / 3, self.outs_recorded % 3)
     }
