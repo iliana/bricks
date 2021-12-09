@@ -187,13 +187,13 @@ fn build_line<'a, F, S>(
     force_number: bool,
 ) -> String
 where
-    F: Fn(&Stats) -> S,
+    F: Fn(Stats) -> S,
     S: ToString,
 {
     let mut s = String::new();
 
-    for (id, stats) in stats {
-        let name = names.get(id).map(String::as_str).unwrap_or_default();
+    for (id, stats) in stats.into_iter().map(|v| (*v.0, *v.1)) {
+        let name = names.get(&id).map(String::as_str).unwrap_or_default();
         let stat = f(stats).to_string();
         if stat.is_empty() || stat == "0" {
             // nothing
