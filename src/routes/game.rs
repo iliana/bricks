@@ -22,23 +22,21 @@ pub fn game(id: Uuid) -> ResponseResult<Option<Html<String>>> {
                 short_names.extend(box_names(&team.player_names, false));
             }
 
-            let (winning_pitcher, losing_pitcher) = if game.away.won {
-                (game.away.pitcher_of_record, game.home.pitcher_of_record)
-            } else {
-                (game.home.pitcher_of_record, game.away.pitcher_of_record)
-            };
-
             Some(Html(
                 GamePage {
                     id,
                     winning_pitcher: short_names
-                        .get(&winning_pitcher)
+                        .get(&game.winner().pitcher_of_record)
                         .cloned()
                         .unwrap_or_default(),
                     losing_pitcher: short_names
-                        .get(&losing_pitcher)
+                        .get(&game.loser().pitcher_of_record)
                         .cloned()
                         .unwrap_or_default(),
+                    saving_pitcher: game
+                        .winner()
+                        .saving_pitcher
+                        .map(|pitcher| short_names.get(&pitcher).cloned().unwrap_or_default()),
                     batters_tables: [
                         batters_table(&game.away, &names),
                         batters_table(&game.home, &names),
@@ -78,6 +76,7 @@ struct GamePage {
     game: Game,
     winning_pitcher: String,
     losing_pitcher: String,
+    saving_pitcher: Option<String>,
     batters_tables: [Table<8>; 2],
     batting_lines: [Vec<Line>; 2],
     baserunning_lines: [Vec<Line>; 2],

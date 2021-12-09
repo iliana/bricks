@@ -21,6 +21,7 @@ pub struct State {
     at_bat: Option<Uuid>,
     last_fielded_out: Option<(u16, Uuid)>,
     rbi_credit: Option<Uuid>,
+    save_situation: [Option<SaveSituation>; 2],
     // key: runner id, value: (pitcher to charge earned run, minimum base)
     on_base: IndexMap<Uuid, (Uuid, u16)>,
     #[serde(skip)]
@@ -55,6 +56,7 @@ impl State {
             at_bat: None,
             last_fielded_out: None,
             rbi_credit: None,
+            save_situation: [None; 2],
             on_base: IndexMap::new(),
             on_base_start_of_play: IndexMap::new(),
         }
@@ -66,7 +68,7 @@ impl State {
         let mut game = self.game;
         ensure!(game.away.won ^ game.home.won, "winner mismatch");
 
-        for team in game.teams_mut() {
+        for (i, team) in game.teams_mut().enumerate() {
             if team.pitcher_of_record == Uuid::default() {
                 // the starting pitcher was cleared as the pitcher of record because they pitched
                 // less than 5 innings, making them ineligible for the win ...
@@ -101,6 +103,22 @@ impl State {
                 team.stats.entry(team.pitcher_of_record).or_default().wins = 1;
             } else {
                 team.stats.entry(team.pitcher_of_record).or_default().losses = 1;
+            }
+
+            if team.won {
+                let finishing_pitcher = *team.pitchers.last().unwrap();
+                if team.pitcher_of_record != finishing_pitcher {
+                    let stats = team.stats.entry(finishing_pitcher).or_default();
+                    let save = match self.save_situation[i] {
+                        Some(SaveSituation::TyingRun) => stats.outs_recorded >= 1,
+                        Some(SaveSituation::LeadThreeOrLess) => stats.outs_recorded >= 3,
+                        None => stats.outs_recorded >= 9,
+                    };
+                    if save {
+                        team.saving_pitcher = Some(finishing_pitcher);
+                        stats.saves = 1;
+                    }
+                }
             }
 
             ensure!(
@@ -150,6 +168,10 @@ impl State {
     }
 
     async fn push_inner(&mut self, event: &GameEvent) -> Result<()> {
+        if self.is_game_over() {
+            ensure!(self.game_finished || event.ty == 11, "game over mismatch");
+        }
+
         if *self.game.away.pitchers.first().unwrap() == Uuid::default() {
             if let Some(pitchers) = &event.pitcher_data {
                 ensure!(
@@ -207,6 +229,25 @@ impl State {
                     self.defense_mut()
                         .player_names
                         .insert(event.player_tags[0], name.into());
+
+                    let offense_runs = self.offense().runs();
+                    let defense_runs = self.defense().runs();
+                    let save = &mut self.save_situation[if self.top_of_inning { 1 } else { 0 }];
+                    *save = if defense_runs > offense_runs {
+                        if offense_runs + 1 >= defense_runs
+                            || offense_runs + u16::try_from(self.on_base.len())? >= defense_runs
+                        {
+                            // potential tying run on base or at bat
+                            // NOTE: on deck handled via `check_save_situation`
+                            Some(SaveSituation::TyingRun)
+                        } else if defense_runs - offense_runs <= 3 {
+                            Some(SaveSituation::LeadThreeOrLess)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    };
                 } else {
                     checkdesc!(false);
                 }
@@ -497,6 +538,25 @@ impl State {
         Ok(())
     }
 
+    fn is_game_over(&self) -> bool {
+        self.inning >= 9
+            && !self.top_of_inning
+            && self.half_inning_outs == 3
+            && self.game.away.runs() != self.game.home.runs()
+    }
+
+    fn check_save_situation(&mut self) {
+        if self.defense_stats(self.pitcher()).batters_faced == 1
+            && self.defense().runs() > self.offense().runs()
+            && self.offense().runs() + 1 >= self.defense().runs()
+            && !self.is_game_over()
+        {
+            // potential tying run on deck as of pitcher's start
+            self.save_situation[if self.top_of_inning { 1 } else { 0 }] =
+                Some(SaveSituation::TyingRun);
+        }
+    }
+
     async fn start_event(&mut self, event: &GameEvent) -> Result<()> {
         self.game.day = event.day;
 
@@ -649,6 +709,7 @@ impl State {
         }
         self.at_bat = None;
         self.record_pitcher_event(|s| &mut s.batters_faced)?;
+        self.check_save_situation();
         self.record_pitcher_event(|s| &mut s.strikes_pitched)?;
         self.record_pitcher_event(|s| &mut s.outs_recorded)
     }
@@ -694,6 +755,7 @@ impl State {
             self.rbi_credit = self.at_bat;
             self.at_bat = None;
             self.record_pitcher_event(|s| &mut s.batters_faced)?;
+            self.check_save_situation();
             self.record_pitcher_event(|s| &mut s.walks_issued)?;
             Ok(true)
         } else if event.description.ends_with("scores!") {
@@ -753,6 +815,7 @@ impl State {
                 self.rbi_credit = self.at_bat;
                 self.at_bat = None;
                 self.record_pitcher_event(|s| &mut s.batters_faced)?;
+                self.check_save_situation();
                 self.record_pitcher_event(|s| &mut s.strikes_pitched)?;
                 self.record_pitcher_event(|s| &mut s.hits_allowed)?;
                 Ok(true)
@@ -856,4 +919,11 @@ impl State {
         *f(self.defense_stats(pitcher)) += 1;
         Ok(())
     }
+}
+
+// Reasons why a finishing pitcher _might_ be in a save situation.
+#[derive(Debug, Clone, Copy, Serialize)]
+enum SaveSituation {
+    TyingRun,
+    LeadThreeOrLess,
 }

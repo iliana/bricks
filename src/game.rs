@@ -149,6 +149,22 @@ impl Game {
     pub fn teams_mut(&mut self) -> impl Iterator<Item = &mut Team> {
         [&mut self.away, &mut self.home].into_iter()
     }
+
+    pub fn winner(&self) -> &Team {
+        if self.away.won {
+            &self.away
+        } else {
+            &self.home
+        }
+    }
+
+    pub fn loser(&self) -> &Team {
+        if self.away.won {
+            &self.home
+        } else {
+            &self.away
+        }
+    }
 }
 
 impl<'a> IntoIterator for &'a Game {
@@ -172,6 +188,7 @@ pub struct Team {
     pub lineup: Vec<Vec<Uuid>>,
     pub pitchers: Vec<Uuid>,
     pub pitcher_of_record: Uuid,
+    pub saving_pitcher: Option<Uuid>,
 
     pub stats: IndexMap<Uuid, Stats>,
     pub inning_runs: BTreeMap<u16, u16>,
@@ -241,6 +258,7 @@ pub struct Stats {
     pub shutouts: u32,
     pub no_hitters: u32,
     pub perfect_games: u32,
+    pub saves: u32,
     pub batters_faced: u32,
     pub outs_recorded: u32,
     pub hits_allowed: u32,
