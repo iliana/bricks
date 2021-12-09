@@ -264,6 +264,7 @@ impl State {
             23 => {} // player skipped (Elsewhere or Shelled)
             28 => {} // end of inning
             41 => {} // Feedback swap (handled in type 113)
+            47 => {} // swallowed peanut
             54 => {} // incineration
             62 => {
                 // Flooding: baserunners swept
@@ -363,6 +364,7 @@ impl State {
                 }
             }
             117 => {} // player stat increase
+            118 => {} // player stat decrease
             125 => {} // player entered Hall of Flame
             132 => {
                 checkdesc!(desc.ends_with("had their rotation shuffled in the Reverb!"));
