@@ -22,9 +22,6 @@ fn load_player(id: Uuid) -> Result<Option<PlayerPage>> {
     };
 
     let summary = summary::player_summary(id)?;
-    if summary.is_empty() {
-        return Ok(None);
-    }
 
     macro_rules! tabler {
         ($tabler:ident, $filter:expr) => {{
