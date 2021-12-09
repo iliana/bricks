@@ -4,6 +4,7 @@ use crate::{seasons::Season, team};
 use anyhow::{bail, ensure, Context, Result};
 use indexmap::IndexMap;
 use serde::Serialize;
+use std::collections::HashMap;
 use uuid::Uuid;
 
 #[derive(Debug, Serialize)]
@@ -17,8 +18,9 @@ pub struct State {
     at_bat: Option<Uuid>,
     last_fielded_out: Option<(u16, Uuid)>,
     rbi_credit: Option<Uuid>,
-    // key: runner id, value: pitcher to be charged with the earned run
-    on_base: IndexMap<Uuid, Uuid>,
+    // key: runner id, value: (pitcher to charge earned run, minimum base)
+    on_base: IndexMap<Uuid, (Uuid, u16)>,
+    on_base_start_of_play: IndexMap<Uuid, (Uuid, u16)>,
 }
 
 impl State {
@@ -49,6 +51,7 @@ impl State {
             last_fielded_out: None,
             rbi_credit: None,
             on_base: IndexMap::new(),
+            on_base_start_of_play: IndexMap::new(),
         }
     }
 
@@ -120,7 +123,7 @@ impl State {
                     team.player_names.insert(pitcher, name.to_owned());
                 }
                 let current_pitcher = self.pitcher();
-                for (_, pitcher) in self.on_base.iter_mut() {
+                for (_, (pitcher, _)) in self.on_base.iter_mut() {
                     if *pitcher == Uuid::default() {
                         *pitcher = current_pitcher;
                     }
@@ -177,7 +180,7 @@ impl State {
                 checkdesc!(desc.contains("strikes out"));
                 self.record_batter_event(|s| &mut s.strike_outs)?;
                 self.record_pitcher_event(|s| &mut s.struck_outs)?;
-                self.batter_out(event)?;
+                self.batter_out()?;
             }
             7 | 8 => {
                 // Flyout or ground out
@@ -393,18 +396,36 @@ impl State {
 
             if self.half_inning_outs < 3 {
                 if let Some(base_runners) = &event.base_runners {
-                    let mut known_runners = base_runners.clone();
-                    known_runners.sort_unstable();
-                    let mut derived_runners = self.on_base.keys().copied().collect::<Vec<_>>();
-                    derived_runners.sort_unstable();
-                    ensure!(
-                        known_runners == derived_runners,
-                        "baserunner mismatch: {:?} != {:?}",
-                        known_runners,
-                        derived_runners
-                    );
+                    if let Some(bases_occupied) = &event.bases_occupied {
+                        let mut known_runners = base_runners
+                            .iter()
+                            .copied()
+                            .zip(bases_occupied.iter().copied())
+                            .collect::<HashMap<_, _>>();
+                        for (runner, (_, min)) in &mut self.on_base {
+                            ensure!(*min < 3, "baserunner {} should have scored", runner);
+                            let pos = known_runners.remove(runner).with_context(|| {
+                                format!("baserunner {} missing from event", runner)
+                            })?;
+                            ensure!(
+                                pos >= *min,
+                                "baserunner {} on base {} but should be on at least {}",
+                                runner,
+                                pos,
+                                min
+                            );
+                            *min = pos;
+                        }
+                        ensure!(
+                            known_runners.is_empty(),
+                            "baserunners {:?} not known to us",
+                            known_runners
+                        );
+                    }
                 }
             }
+
+            self.on_base_start_of_play = self.on_base.clone();
         }
 
         Ok(())
@@ -434,8 +455,10 @@ impl State {
         Ok(())
     }
 
-    fn risp(&self, event: &GameEvent) -> bool {
-        event.bases_occupied.iter().flatten().any(|base| *base >= 1) || self.on_base.len() > 1
+    fn risp(&self) -> bool {
+        self.on_base_start_of_play
+            .values()
+            .any(|(_, min)| *min >= 1)
     }
 
     fn next_half_inning(&mut self) -> Result<()> {
@@ -466,6 +489,7 @@ impl State {
             .as_ref()
             .copied()
             .context("sac advance without a prior fielded out")?;
+        let risp = self.risp();
         let stats = self.offense_stats(batter);
         match last_event {
             7 => stats.sacrifice_flies += 1,
@@ -474,6 +498,9 @@ impl State {
         }
         stats.runs_batted_in += 1;
         stats.at_bats -= 1;
+        if risp {
+            stats.at_bats_with_risp -= 1;
+        }
 
         Ok(())
     }
@@ -492,7 +519,8 @@ impl State {
             self.on_base
                 .shift_remove(&out)
                 .context("baserunner out in fielder's choice not on base")?;
-            self.on_base.insert(self.batter()?, self.pitcher());
+            self.on_base.insert(self.batter()?, (self.pitcher(), 0));
+            self.fix_minimum_base();
         } else if event.description.ends_with("hit into a double play!") {
             // double play
             self.half_inning_outs += 1;
@@ -541,15 +569,15 @@ impl State {
             unreachable!();
         }
 
-        self.batter_out(event)
+        self.batter_out()
     }
 
-    fn batter_out(&mut self, event: &GameEvent) -> Result<()> {
+    fn batter_out(&mut self) -> Result<()> {
         self.half_inning_outs += 1;
         self.offense_stats(self.batter()?).left_on_base += self.on_base.len();
         self.record_batter_event(|s| &mut s.plate_appearances)?;
         self.record_batter_event(|s| &mut s.at_bats)?;
-        if self.risp(event) {
+        if self.risp() {
             self.record_batter_event(|s| &mut s.at_bats_with_risp)?;
         }
         self.at_bat = None;
@@ -562,7 +590,8 @@ impl State {
         let pitcher = self
             .on_base
             .shift_remove(&runner)
-            .context("cannot determine pitcher to charge with earned run")?;
+            .context("cannot determine pitcher to charge with earned run")?
+            .0;
         let inning = self.inning;
         *self.offense_mut().inning_runs.entry(inning).or_default() += 1;
         self.record_runner_event(runner, |s| &mut s.runs)?;
@@ -579,7 +608,8 @@ impl State {
 
     fn walk(&mut self, event: &GameEvent) -> Result<bool> {
         if event.description.ends_with("draws a walk.") {
-            self.on_base.insert(self.batter()?, self.pitcher());
+            self.on_base.insert(self.batter()?, (self.pitcher(), 0));
+            self.fix_minimum_base();
             self.record_batter_event(|s| &mut s.plate_appearances)?;
             self.record_batter_event(|s| &mut s.walks)?;
             self.rbi_credit = self.at_bat;
@@ -610,13 +640,34 @@ impl State {
         Ok(true)
     }
 
+    fn fix_minimum_base(&mut self) {
+        let mut iter = self.on_base.values_mut().rev().map(|(_, base)| base);
+        let mut last = match iter.next() {
+            Some(last) => *last,
+            None => return,
+        };
+        for base in iter {
+            if *base <= last {
+                // due to the fact that the minimum base is only used to determine RISP, and
+                // because of the 🤝 glitch, we treat only first base as exclusive
+                if last == 0 {
+                    *base = 1;
+                } else {
+                    *base = last;
+                }
+            }
+            last = *base;
+        }
+    }
+
     fn hit(&mut self, event: &GameEvent) -> Result<bool> {
         macro_rules! common {
-            () => {{
-                self.on_base.insert(self.batter()?, self.pitcher());
+            ($base:expr) => {{
+                self.on_base.insert(self.batter()?, (self.pitcher(), $base));
+                self.fix_minimum_base();
                 self.record_batter_event(|s| &mut s.plate_appearances)?;
                 self.record_batter_event(|s| &mut s.at_bats)?;
-                if self.risp(event) {
+                if self.risp() {
                     self.record_batter_event(|s| &mut s.at_bats_with_risp)?;
                     self.record_batter_event(|s| &mut s.hits_with_risp)?;
                 }
@@ -634,16 +685,16 @@ impl State {
         if event.ty == 9 && (desc.ends_with("home run!") || desc.ends_with("hits a grand slam!")) {
             self.record_batter_event(|s| &mut s.home_runs)?;
             self.record_pitcher_event(|s| &mut s.home_runs_allowed)?;
-            common!()
+            common!(3)
         } else if event.ty == 10 && desc.ends_with("hits a Single!") {
             self.record_batter_event(|s| &mut s.singles)?;
-            common!()
+            common!(0)
         } else if event.ty == 10 && desc.ends_with("hits a Double!") {
             self.record_batter_event(|s| &mut s.doubles)?;
-            common!()
+            common!(1)
         } else if event.ty == 10 && desc.ends_with("hits a Triple!") {
             self.record_batter_event(|s| &mut s.triples)?;
-            common!()
+            common!(2)
         } else if desc.ends_with("scores!") {
             ensure!(event.player_tags.len() == 1, "invalid player tag count");
             self.credit_run(event.player_tags[0])?;
