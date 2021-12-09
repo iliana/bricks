@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 
 #[macro_export]
 macro_rules! row {
@@ -17,6 +17,7 @@ pub use row;
 pub struct Table<const N: usize> {
     pub header: [String; N],
     pub abbr: [String; N],
+    pub skip: Vec<usize>,
     pub col_class: [&'static str; N],
     pub sort_method: [&'static str; N],
     // (cells, first cell class)
@@ -41,6 +42,7 @@ where
         Table {
             header,
             abbr,
+            skip: Vec::new(),
             col_class: [col_class; N],
             sort_method: [sort_method; N],
             rows: Vec::new(),
@@ -54,6 +56,28 @@ where
         });
     }
 
+    pub fn insert<const M: usize, const Z: usize>(self, index: usize, other: Table<M>) -> Table<Z>
+    where
+        [String; Z]: Default,
+        [&'static str; Z]: Default,
+    {
+        Table {
+            header: array_insert(self.header, other.header, index),
+            abbr: array_insert(self.abbr, other.abbr, index),
+            skip: self.skip,
+            col_class: array_insert(self.col_class, other.col_class, index),
+            sort_method: array_insert(self.sort_method, other.sort_method, index),
+            rows: self
+                .rows
+                .into_iter()
+                .zip(other.rows)
+                .map(|(a, b)| a.insert(index, b))
+                .collect(),
+        }
+    }
+}
+
+impl<const N: usize> Table<N> {
     pub fn set_class(&mut self, class: &'static str) {
         if let Some(row) = self.rows.last_mut() {
             row.class = class;
@@ -66,23 +90,20 @@ where
         }
     }
 
-    pub fn insert<const M: usize, const Z: usize>(self, index: usize, other: Table<M>) -> Table<Z>
-    where
-        [String; Z]: Default,
-        [&'static str; Z]: Default,
-    {
-        Table {
-            header: array_insert(self.header, other.header, index),
-            abbr: array_insert(self.abbr, other.abbr, index),
-            col_class: array_insert(self.col_class, other.col_class, index),
-            sort_method: array_insert(self.sort_method, other.sort_method, index),
-            rows: self
-                .rows
-                .into_iter()
-                .zip(other.rows)
-                .map(|(a, b)| a.insert(index, b))
-                .collect(),
+    pub fn skip(&mut self, column: &str) -> &mut Table<N> {
+        if let Some(index) = self
+            .abbr
+            .iter()
+            .position(|x| x == column)
+            .or_else(|| self.header.iter().position(|x| x == column))
+        {
+            self.skip.push(index);
         }
+        self
+    }
+
+    pub fn not_skip(&self, index: &usize) -> bool {
+        !self.skip.contains(index)
     }
 }
 
@@ -133,6 +154,12 @@ impl<const N: usize, const S: usize> Deref for TotalsTable<N, S> {
 
     fn deref(&self) -> &Table<N> {
         &self.table
+    }
+}
+
+impl<const N: usize, const S: usize> DerefMut for TotalsTable<N, S> {
+    fn deref_mut(&mut self) -> &mut Table<N> {
+        &mut self.table
     }
 }
 

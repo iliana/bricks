@@ -58,14 +58,16 @@ fn load_player(id: Uuid) -> Result<Option<PlayerPage>> {
         }};
     }
 
-    Ok(Some(PlayerPage {
+    let mut page = PlayerPage {
         name,
         id,
         standard_batting: tabler!(batting, |s| !s.is_postseason && s.stats.is_batting()),
         postseason_batting: tabler!(batting, |s| s.is_postseason && s.stats.is_batting()),
         standard_pitching: tabler!(pitching, |s| !s.is_postseason && s.stats.is_pitching()),
         postseason_pitching: tabler!(pitching, |s| s.is_postseason && s.stats.is_pitching()),
-    }))
+    };
+    page.postseason_batting.table.skip("OPS+");
+    Ok(Some(page))
 }
 
 #[derive(Template)]
