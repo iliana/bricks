@@ -518,10 +518,11 @@ impl State {
                 .find(|(_, name)| name == &out)
                 .with_context(|| format!("could not determine id for baserunner {}", out))?
                 .0;
-            self.on_base
+            let (pitcher, _) = self
+                .on_base
                 .shift_remove(&out)
                 .context("baserunner out in fielder's choice not on base")?;
-            self.on_base.insert(self.batter()?, (self.pitcher(), 0));
+            self.on_base.insert(self.batter()?, (pitcher, 0));
             self.fix_minimum_base();
         } else if event.description.ends_with("hit into a double play!") {
             // double play
