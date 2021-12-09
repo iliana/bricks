@@ -10,6 +10,7 @@ askama = "0.10"
 chrono = { version = "0.4", features = ["serde"] }
 derive_more = "0.99"
 dotenv = "0.15"
+fraction = "0.9"
 indexmap = { version = "1", features = ["serde"] }
 itertools = "0.10"
 json-patch = "0.2"

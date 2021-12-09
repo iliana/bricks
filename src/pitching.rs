@@ -1,9 +1,9 @@
 use crate::game::Stats;
-use crate::table::{row, Table, TotalsTable};
+use crate::table::{row, Table};
 
 pub const COLS: usize = 16;
 
-pub fn table(iter: impl Iterator<Item = Stats>) -> TotalsTable<COLS, COLS> {
+pub fn table(iter: impl Iterator<Item = Stats>, league: Stats) -> Table<COLS> {
     let mut table = Table::new(
         [
             ("Earned Run Average", "ERA"),
@@ -27,16 +27,14 @@ pub fn table(iter: impl Iterator<Item = Stats>) -> TotalsTable<COLS, COLS> {
         "number",
     );
 
-    let mut totals = Stats::default();
     for stats in iter {
-        totals += stats;
-        table.push(build_row(stats));
+        table.push(build_row(stats, league));
     }
 
-    table.with_totals(build_row(totals))
+    table
 }
 
-pub fn build_row(stats: Stats) -> [String; COLS] {
+pub fn build_row(stats: Stats, _league: Stats) -> [String; COLS] {
     row![
         stats.earned_run_average(),
         stats.games_pitched,

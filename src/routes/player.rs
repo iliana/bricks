@@ -1,6 +1,6 @@
 use crate::routes::team::rocket_uri_macro_team;
 use crate::table::{Table, TotalsTable};
-use crate::{batting, names, pitching, routes::ResponseResult, summary};
+use crate::{batting, game::Stats, names, pitching, routes::ResponseResult, summary};
 use anyhow::Result;
 use askama::Template;
 use rocket::response::content::Html;
@@ -27,8 +27,12 @@ fn load_player(id: Uuid) -> Result<Option<PlayerPage>> {
     }
 
     macro_rules! tabler {
-        ($tabler:expr, $filter:expr) => {{
+        ($tabler:ident, $filter:expr) => {{
             let mut ident_table = Table::new([("Season", ""), ("Team", "")], "text-left", "none");
+            let mut stats_table = $tabler::table(std::iter::empty(), Stats::default());
+            let mut totals = Stats::default();
+            let mut league_totals = Stats::default();
+
             for row in summary.iter().filter($filter) {
                 let team = names::team_name(row.team_id)?.unwrap_or_default();
                 ident_table.push([format!("{:#}", row.season), team.shorthand]);
@@ -40,11 +44,16 @@ fn load_player(id: Uuid) -> Result<Option<PlayerPage>> {
                         season = row.season.season
                     )),
                 );
+
+                let league = summary::league_totals(&row.season)?;
+                stats_table.push($tabler::build_row(row.stats, league));
+                totals += row.stats;
+                league_totals += league;
             }
-            let stats_table = $tabler(summary.iter().filter($filter).map(|row| row.stats));
+
             TotalsTable {
-                table: stats_table.table.insert(0, ident_table),
-                totals: stats_table.totals,
+                table: stats_table.insert(0, ident_table),
+                totals: $tabler::build_row(totals, league_totals),
             }
         }};
     }
@@ -52,12 +61,10 @@ fn load_player(id: Uuid) -> Result<Option<PlayerPage>> {
     Ok(Some(PlayerPage {
         name,
         id,
-        standard_batting: tabler!(batting::table, |s| !s.is_postseason && s.stats.is_batting()),
-        postseason_batting: tabler!(batting::table, |s| s.is_postseason && s.stats.is_batting()),
-        standard_pitching: tabler!(pitching::table, |s| !s.is_postseason
-            && s.stats.is_pitching()),
-        postseason_pitching: tabler!(pitching::table, |s| s.is_postseason
-            && s.stats.is_pitching()),
+        standard_batting: tabler!(batting, |s| !s.is_postseason && s.stats.is_batting()),
+        postseason_batting: tabler!(batting, |s| s.is_postseason && s.stats.is_batting()),
+        standard_pitching: tabler!(pitching, |s| !s.is_postseason && s.stats.is_pitching()),
+        postseason_pitching: tabler!(pitching, |s| s.is_postseason && s.stats.is_pitching()),
     }))
 }
 

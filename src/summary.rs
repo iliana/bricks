@@ -17,20 +17,22 @@ pub fn write_summary(
     season_tree: &TransactionalTree,
     game: &Game,
 ) -> ConflictableTransactionResult<(), serde_json::Error> {
-    for team in game.teams() {
-        let mut totals = Stats::default();
+    let mut totals = Stats::default();
 
-        for (id, stats) in &team.stats {
+    for team in game.teams() {
+        let mut team_totals = Stats::default();
+
+        for (id, stats) in team.stats.iter().map(|v| (*v.0, *v.1)) {
             for key in [
-                build_key(team.id, *id, &game.season, game.is_postseason),
-                build_key(*id, team.id, &game.season, game.is_postseason),
+                build_key(team.id, id, &game.season, game.is_postseason),
+                build_key(id, team.id, &game.season, game.is_postseason),
             ] {
                 let mut value = match tree.get(&key)? {
                     None => Value::new(game.day),
                     Some(value) => serde_json::from_slice(&value)
                         .map_err(ConflictableTransactionError::Abort)?,
                 };
-                value.stats += *stats;
+                value.stats += stats;
                 tree.insert(
                     key.as_slice(),
                     serde_json::to_vec(&value)
@@ -40,16 +42,16 @@ pub fn write_summary(
             }
 
             if !game.is_postseason {
-                let key = build_season_key(&game.season, b'p', *id);
+                let key = build_season_key(&game.season, b'p', id);
                 let mut value = match season_tree.get(&key)? {
                     None => SeasonValue::default(),
                     Some(value) => serde_json::from_slice(&value)
                         .map_err(ConflictableTransactionError::Abort)?,
                 };
-                value.stats += *stats;
+                value.stats += stats;
                 value.team_id = team.id;
                 value.team_abbr = team.name.shorthand.clone();
-                if let Some(name) = team.player_names.get(id) {
+                if let Some(name) = team.player_names.get(&id) {
                     value.name = name.into();
                 }
                 season_tree.insert(
@@ -60,11 +62,11 @@ pub fn write_summary(
                 )?;
             }
 
-            totals += *stats;
+            team_totals += stats;
         }
 
-        totals.games_batted = 1;
-        totals.games_pitched = 1;
+        team_totals.games_batted = 1;
+        team_totals.games_pitched = 1;
         let key = build_season_key(
             &game.season,
             if game.is_postseason { b'u' } else { b't' },
@@ -76,7 +78,7 @@ pub fn write_summary(
                 serde_json::from_slice(&value).map_err(ConflictableTransactionError::Abort)?
             }
         };
-        value.stats += totals;
+        value.stats += team_totals;
         value.team_id = team.id;
         value.team_abbr = team.name.shorthand.clone();
         value.name = team.name.nickname.clone();
@@ -86,7 +88,26 @@ pub fn write_summary(
                 .map_err(ConflictableTransactionError::Abort)?
                 .as_slice(),
         )?;
+
+        totals += team_totals;
     }
+
+    totals.games_batted = 1;
+    totals.games_pitched = 1;
+    let key = build_season_key(&game.season, b'l', Uuid::default());
+    let mut value = match season_tree.get(&key)? {
+        None => SeasonValue::default(),
+        Some(value) => {
+            serde_json::from_slice(&value).map_err(ConflictableTransactionError::Abort)?
+        }
+    };
+    value.stats += totals;
+    season_tree.insert(
+        key.as_slice(),
+        serde_json::to_vec(&value)
+            .map_err(ConflictableTransactionError::Abort)?
+            .as_slice(),
+    )?;
 
     Ok(())
 }
@@ -233,14 +254,24 @@ fn season_summary(season: &Season, kind: u8) -> Result<Vec<SeasonSummary>> {
     Ok(v)
 }
 
-pub fn team_totals(season: &Season, team_id: Uuid, is_postseason: bool) -> Result<Option<Stats>> {
+pub fn team_totals(season: &Season, team_id: Uuid, is_postseason: bool) -> Result<Stats> {
     let tree = DB.open_tree(SEASON_TREE)?;
     let key = build_season_key(season, if is_postseason { b'u' } else { b't' }, team_id);
-    let value: SeasonValue = match tree.get(&key)? {
+    Ok(match tree.get(&key)? {
+        None => SeasonValue::default(),
         Some(value) => serde_json::from_slice(&value)?,
-        None => return Ok(None),
-    };
-    Ok(Some(value.stats))
+    }
+    .stats)
+}
+
+pub fn league_totals(season: &Season) -> Result<Stats> {
+    let tree = DB.open_tree(SEASON_TREE)?;
+    let key = build_season_key(season, b'l', Uuid::default());
+    Ok(match tree.get(&key)? {
+        None => SeasonValue::default(),
+        Some(value) => serde_json::from_slice(&value)?,
+    }
+    .stats)
 }
 
 fn build_season_key(season: &Season, kind: u8, id: Uuid) -> Vec<u8> {

@@ -1,9 +1,9 @@
 use crate::game::Stats;
-use crate::table::{row, Table, TotalsTable};
+use crate::table::{row, Table};
 
-pub const COLS: usize = 21;
+pub const COLS: usize = 22;
 
-pub fn table(iter: impl Iterator<Item = Stats>) -> TotalsTable<COLS, COLS> {
+pub fn table(iter: impl Iterator<Item = Stats>, league: Stats) -> Table<COLS> {
     let mut table = Table::new(
         [
             ("Games Played", "G"),
@@ -23,6 +23,7 @@ pub fn table(iter: impl Iterator<Item = Stats>) -> TotalsTable<COLS, COLS> {
             ("On-base Percentage", "OBP"),
             ("Slugging Percentage", "SLG"),
             ("On-base Plus Slugging", "OPS"),
+            ("Adjusted OPS (100 is league average)", "OPS+"),
             ("Total Bases", "TB"),
             ("Double Plays Grounded Into", "GIDP"),
             ("Sacrifice Hits", "SH"),
@@ -32,16 +33,14 @@ pub fn table(iter: impl Iterator<Item = Stats>) -> TotalsTable<COLS, COLS> {
         "number",
     );
 
-    let mut totals = Stats::default();
     for stats in iter {
-        totals += stats;
-        table.push(build_row(stats));
+        table.push(build_row(stats, league));
     }
 
-    table.with_totals(build_row(totals))
+    table
 }
 
-pub fn build_row(stats: Stats) -> [String; COLS] {
+pub fn build_row(stats: Stats, league: Stats) -> [String; COLS] {
     row![
         stats.games_batted,
         stats.plate_appearances,
@@ -60,6 +59,7 @@ pub fn build_row(stats: Stats) -> [String; COLS] {
         stats.on_base_percentage(),
         stats.slugging_percentage(),
         stats.on_base_plus_slugging(),
+        stats.ops_plus(league),
         stats.total_bases(),
         stats.double_plays_grounded_into,
         stats.sacrifice_hits,

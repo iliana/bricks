@@ -84,20 +84,6 @@ where
                 .collect(),
         }
     }
-
-    pub fn with_totals<const S: usize>(self, totals: [impl ToString; S]) -> TotalsTable<N, S>
-    where
-        [String; S]: Default,
-    {
-        let mut string_totals: [String; S] = Default::default();
-        for (i, total) in totals.into_iter().enumerate() {
-            string_totals[i] = total.to_string();
-        }
-        TotalsTable {
-            table: self,
-            totals: string_totals,
-        }
-    }
 }
 
 #[derive(Debug)]

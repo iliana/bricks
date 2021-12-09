@@ -47,7 +47,8 @@ macro_rules! load {
         }
 
         let summary = summary::$summary_func(&$season)?;
-        let stats_table = $tabler(summary.iter().filter($filter).map(|row| row.stats));
+        let league = summary::league_totals(&$season)?;
+        let stats_table = $tabler(summary.iter().filter($filter).map(|row| row.stats), league);
 
         Ok(Some(SeasonPage {
             table: load!(@inner $summary_func, summary, stats_table, $season, $filter),
@@ -77,7 +78,7 @@ macro_rules! load {
                 )),
             );
         }
-        $table.table.insert(0, ident_table)
+        $table.insert(0, ident_table)
     }};
 
     (@inner season_team_summary, $summary:expr, $table:expr, $season:expr, $filter:expr) => {{
@@ -93,7 +94,7 @@ macro_rules! load {
                 )),
             );
         }
-        $table.table.insert(0, ident_table)
+        $table.insert(0, ident_table)
     }};
 }
 

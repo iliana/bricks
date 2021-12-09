@@ -278,7 +278,14 @@ impl Stats {
     }
 
     pub fn on_base_plus_slugging(&self) -> Pct<3> {
-        self.on_base_percentage() + self.slugging_percentage()
+        Pct(self.on_base_percentage().0 + self.slugging_percentage().0)
+    }
+
+    pub fn ops_plus(&self, league: Stats) -> Pct<0> {
+        let obp = self.on_base_percentage().0 / league.on_base_percentage().0;
+        let slg = self.slugging_percentage().0 / league.slugging_percentage().0;
+        let pct = obp + slg - 1.into();
+        Pct(pct * 100.into())
     }
 
     pub fn total_bases(&self) -> u32 {

@@ -43,6 +43,7 @@ fn load_team(id: Uuid, season: Season) -> Result<Option<TeamPage>> {
         .min(0);
 
     let summary = summary::team_summary(id, &season)?;
+    let league = summary::league_totals(&season)?;
 
     macro_rules! tabler {
         ($tabler:ident, $is_postseason:expr, $filter:expr) => {{
@@ -52,12 +53,12 @@ fn load_team(id: Uuid, season: Season) -> Result<Option<TeamPage>> {
                 ident_table.push([player]);
                 ident_table.set_href(0, uri!(player(id = row.player_id)));
             }
-            let stats_table = $tabler::table(summary.iter().filter($filter).map(|row| row.stats));
-            let totals = summary::team_totals(&season, id, $is_postseason)?
-                .map($tabler::build_row)
-                .unwrap_or(stats_table.totals);
+            let stats_table =
+                $tabler::table(summary.iter().filter($filter).map(|row| row.stats), league);
+            let totals =
+                $tabler::build_row(summary::team_totals(&season, id, $is_postseason)?, league);
             TotalsTable {
-                table: stats_table.table.insert(0, ident_table),
+                table: stats_table.insert(0, ident_table),
                 totals,
             }
         }};
