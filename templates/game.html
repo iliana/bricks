@@ -85,9 +85,11 @@
         <td class="pt-1 md:pt-1.5 lg:pt-2 space-x-4" colspan="{{ game.away.inning_runs.len() + 3 }}">
           <span><abbr class="font-bold" title="Winning Pitcher">WP</abbr>: {{ winning_pitcher }}</span>
           <span><abbr class="font-bold" title="Losing Pitcher">LP</abbr>: {{ losing_pitcher }}</span>
+          <!-- prettier-ignore -->
           {% match saving_pitcher %}
           {% when Some with (sv) %}
           <span><abbr class="font-bold" title="Saving Pitcher">SV</abbr>: {{ sv }}</span>
+          <!-- prettier-ignore -->
           {% when None %}
           {% endmatch %}
         </td>
