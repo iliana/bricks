@@ -188,7 +188,7 @@ mod tests {
             if !((frac.is_nan() && float.is_nan())
                 || (frac.is_infinite() && float.is_infinite() && frac.signum() == float.signum()))
             {
-                float_cmp::assert_approx_eq!(f64, frac, float);
+                float_cmp::assert_approx_eq!(f64, frac, float, epsilon = 0.00000003, ulps = 2);
             }
         }};
     }
