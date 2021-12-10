@@ -10,7 +10,7 @@ askama = "0.10"
 chrono = { version = "0.4", features = ["serde"] }
 derive_more = "0.99"
 dotenv = "0.15"
-fraction = "0.9"
+gcd = "2"
 indexmap = { version = "1", features = ["serde"] }
 itertools = "0.10"
 json-patch = "0.2"
@@ -26,3 +26,7 @@ sled = { version = "0.34", features = ["compression"] }
 twox-hash = "1"
 uuid = { version = "0.8", features = ["serde"] }
 zerocopy = "0.6"
+
+[dev-dependencies]
+float-cmp = "0.9"
+proptest = "1"

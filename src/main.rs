@@ -2,6 +2,7 @@ mod batting;
 mod chronicler;
 mod debug;
 mod feed;
+mod fraction;
 mod game;
 mod names;
 mod percentage;
