@@ -181,39 +181,36 @@ mod tests {
 
     macro_rules! eq {
         ($oper:tt, $a:expr, $b:expr, $c:expr, $d:expr) => {{
-            let frac = f!($a, $b) $oper f!($c, $d);
-            if !frac.is_overflow() {
-                let frac = frac.numer as f64 / frac.denom as f64;
-                let float = ($a as f64 / $b as f64) $oper ($c as f64 / $d as f64);
-                if !((frac.is_nan() && float.is_nan())
-                    || (frac.is_infinite() && float.is_infinite() && frac.signum() == float.signum()))
-                {
-                    float_cmp::assert_approx_eq!(f64, frac, float, ulps = 1);
-                }
+            let frac = f!($a.into(), $b.into()) $oper f!($c.into(), $d.into());
+            prop_assume!(!frac.is_overflow());
+            let frac = frac.numer as f64 / frac.denom as f64;
+            let float = ($a as f64 / $b as f64) $oper ($c as f64 / $d as f64);
+            if !((frac.is_nan() && float.is_nan())
+                || (frac.is_infinite() && float.is_infinite() && frac.signum() == float.signum()))
+            {
+                float_cmp::assert_approx_eq!(f64, frac, float);
             }
         }};
     }
 
     proptest! {
-        #![proptest_config(ProptestConfig::with_cases(4096))]
-
         #[test]
-        fn add(a: i64, b: u64, c: i64, d: u64) {
+        fn add(a: i32, b: u32, c: i32, d: u32) {
             eq!(+, a, b, c, d);
         }
 
         #[test]
-        fn sub(a: i64, b: u64, c: i64, d: u64) {
+        fn sub(a: i32, b: u32, c: i32, d: u32) {
             eq!(-, a, b, c, d);
         }
 
         #[test]
-        fn mul(a: i64, b: u64, c: i64, d: u64) {
+        fn mul(a: i32, b: u32, c: i32, d: u32) {
             eq!(*, a, b, c, d);
         }
 
         #[test]
-        fn div(a: i64, b: u64, c: i64, d: u64) {
+        fn div(a: i32, b: u32, c: i32, d: u32) {
             eq!(/, a, b, c, d);
         }
     }
