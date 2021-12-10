@@ -26,6 +26,8 @@ pub struct State {
     on_base: IndexMap<Uuid, (Uuid, u16)>,
     #[serde(skip)]
     on_base_start_of_play: IndexMap<Uuid, (Uuid, u16)>,
+    #[serde(skip)]
+    expected: (u16, u16),
 }
 
 impl State {
@@ -59,6 +61,7 @@ impl State {
             save_situation: [None; 2],
             on_base: IndexMap::new(),
             on_base_start_of_play: IndexMap::new(),
+            expected: (0, 0),
         }
     }
 
@@ -168,6 +171,8 @@ impl State {
     }
 
     async fn push_inner(&mut self, event: &GameEvent) -> Result<()> {
+        self.expected = event.expect(self.expected)?;
+
         if self.is_game_over() {
             ensure!(self.game_finished || event.ty == 11, "game over mismatch");
         }

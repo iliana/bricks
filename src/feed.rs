@@ -1,5 +1,5 @@
 use crate::{CLIENT, DB, SACHET_BASE};
-use anyhow::Result;
+use anyhow::{bail, Result};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use uuid::Uuid;
@@ -7,18 +7,47 @@ use uuid::Uuid;
 pub async fn load(game_id: Uuid) -> Result<Vec<GameEvent>> {
     let tree = DB.open_tree("cache_sachet_v1")?;
     if let Some(data) = tree.get(game_id.as_bytes())? {
-        Ok(serde_json::from_slice(&data)?)
-    } else {
-        let data = CLIENT
-            .get(format!("{}/packets?id={}", SACHET_BASE, game_id))
-            .send()
-            .await?
-            .text()
-            .await?;
-        let events = serde_json::from_str(&data)?;
-        tree.insert(game_id.as_bytes(), data.into_bytes())?;
-        Ok(events)
+        let mut events: Vec<GameEvent> = serde_json::from_slice(&data)?;
+        events.sort_unstable();
+        if check(&events) {
+            return Ok(events);
+        } else {
+            log::warn!("removing cached feed for {}", game_id);
+            tree.remove(game_id.as_bytes())?;
+        }
     }
+
+    let data = CLIENT
+        .get(format!("{}/packets?id={}", SACHET_BASE, game_id))
+        .send()
+        .await?
+        .text()
+        .await?;
+    let mut events: Vec<GameEvent> = serde_json::from_str(&data)?;
+    events.sort_unstable();
+    // if this check fails, return anyway so we can get debug output, but don't cache
+    if check(&events) {
+        tree.insert(game_id.as_bytes(), data.into_bytes())?;
+    } else {
+        log::warn!("not caching feed for {}", game_id);
+    }
+    Ok(events)
+}
+
+fn check(feed: &[GameEvent]) -> bool {
+    if feed.is_empty() {
+        return false;
+    }
+    let mut expected = (0, 0);
+    for event in feed {
+        expected = match event.expect(expected) {
+            Ok(x) => x,
+            Err(_) => return false,
+        };
+    }
+    feed.iter()
+        .rev()
+        .any(|event| event.ty == 214 || event.ty == 215)
 }
 
 #[derive(Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
@@ -42,6 +71,29 @@ pub struct GameEvent {
 
     #[serde(flatten)]
     pub pitcher_data: Option<PitcherData>,
+}
+
+impl GameEvent {
+    pub fn expect(&self, expected: (u16, u16)) -> Result<(u16, u16)> {
+        if expected != (self.metadata.play, self.metadata.sub_play) {
+            // handle empty event before half-inning changes
+            if self.ty == 2 && expected == (self.metadata.play - 1, self.metadata.sub_play) {
+                Ok(self.next())
+            } else {
+                bail!("missing event {:?}", expected);
+            }
+        } else {
+            Ok(self.next())
+        }
+    }
+
+    fn next(&self) -> (u16, u16) {
+        if usize::from(self.metadata.sub_play) + 1 == self.metadata.sibling_ids.len() {
+            (self.metadata.play + 1, 0)
+        } else {
+            (self.metadata.play, self.metadata.sub_play + 1)
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord)]

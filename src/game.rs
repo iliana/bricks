@@ -34,8 +34,7 @@ pub async fn process(season: Season, id: Uuid, force: bool) -> Result<bool> {
         let mut state = State::new(season);
         let mut debug_log = Vec::new();
         let mut old = Value::default();
-        let mut feed = crate::feed::load(id).await?;
-        feed.sort_unstable();
+        let feed = crate::feed::load(id).await?;
         for event in feed {
             match state.push(&event).await {
                 Ok(()) => {
