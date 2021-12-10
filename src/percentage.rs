@@ -22,12 +22,13 @@ impl<const PRECISION: u8> Display for Pct<PRECISION> {
         } else if PRECISION == 0 {
             write!(f, "{}", self.0.round())
         } else {
-            let trunc = self.0.trunc();
+            let mult = 10_u64.pow(PRECISION.into()).into();
+            let n = (self.0 * mult).round() / mult;
+            let trunc = n.trunc();
             if PRECISION < 3 || trunc > Fraction::zero() {
                 write!(f, "{}", trunc)?;
             }
-            let mult = 10_u64.pow(PRECISION.into()).into();
-            let fract = (self.0.fract() * mult).round();
+            let fract = (n.fract() * mult).round();
             write!(f, ".{:0>width$}", fract, width = PRECISION.into())
         }
     }
@@ -48,4 +49,9 @@ fn test() {
 
     let n: Pct<0> = Pct::new(5010u16, 100);
     assert_eq!(n.to_string(), "50");
+
+    let n: Pct<2> = Pct::new(19999u16, 10000);
+    assert_eq!(n.to_string(), "2.00");
+    let n: Pct<2> = Pct::new(20001u16, 10000);
+    assert_eq!(n.to_string(), "2.00");
 }
