@@ -3,7 +3,7 @@ use crate::seasons::{self, Season};
 use crate::{debug::LogEntry, percentage::Pct, state::State, summary, DB};
 use anyhow::Result;
 use derive_more::{Add, AddAssign, Sum};
-use indexmap::IndexMap;
+use indexmap::{IndexMap, IndexSet};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sled::transaction::{ConflictableTransactionError, Transactional};
@@ -192,6 +192,8 @@ pub struct Team {
     pub stats: IndexMap<Uuid, Stats>,
     pub inning_runs: BTreeMap<u16, u16>,
     pub left_on_base: usize,
+
+    pub crisp: IndexSet<Uuid>,
 }
 
 impl Team {

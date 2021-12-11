@@ -38,7 +38,7 @@ const SACHET_BASE: &str = "https://api.sibr.dev/eventually/sachet";
 static REBUILDING: AtomicBool = AtomicBool::new(false);
 
 // Increment this if you need to force a rebuild.
-const DB_VERSION: &[u8] = &[11];
+const DB_VERSION: &[u8] = &[12];
 const CLEAR_ON_REBUILD: &[&str] = &[summary::TREE, summary::SEASON_TREE];
 const OLD_TREES: &[&str] = &[];
 

@@ -373,9 +373,25 @@ impl State {
                 checkdesc!(desc == "A surge of Immateria rushes up from Under!\nBaserunners are swept from play!");
                 self.on_base.clear();
             }
-            73 => {}              // peanut flavor text
-            84 => {}              // player returned from Elsewhere
-            106 | 107 | 146 => {} // added/removed modification
+            73 => {} // peanut flavor text
+            84 => {} // player returned from Elsewhere
+            106 | 146 => {
+                // modification added
+                ensure!(event.player_tags.len() == 1, "invalid player tag count");
+                if let Some(ExtraData::Modification { r#mod: m }) = &event.metadata.extra {
+                    if m == "FROZEN"
+                        && self
+                            .on_base_start_of_play
+                            .get(&event.player_tags[0])
+                            .map_or(false, |(_, base)| *base > 0)
+                    {
+                        self.offense_mut().crisp.insert(event.player_tags[0]);
+                    }
+                }
+            }
+            107 | 147 => {
+                // modification removed
+            }
             113 => {
                 // Trade (e.g. Feedback swap)
                 checkdesc!(desc.ends_with("were swapped in Feedback."));
