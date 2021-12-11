@@ -10,6 +10,7 @@ mod names;
 mod percentage;
 mod pitching;
 mod routes;
+mod salmon;
 mod schedule;
 mod seasons;
 mod state;
