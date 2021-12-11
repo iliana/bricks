@@ -284,6 +284,10 @@ impl Stats {
         self.singles + self.doubles + self.triples + self.home_runs
     }
 
+    pub fn total_bases(&self) -> u32 {
+        self.singles + 2 * self.doubles + 3 * self.triples + 4 * self.home_runs
+    }
+
     pub fn batting_average(&self) -> Pct<3> {
         Pct::new(self.hits(), self.at_bats)
     }
@@ -310,21 +314,12 @@ impl Stats {
         Pct(pct * 100.into())
     }
 
-    pub fn total_bases(&self) -> u32 {
-        self.singles + 2 * self.doubles + 3 * self.triples + 4 * self.home_runs
-    }
-
     pub fn win_loss_percentage(&self) -> Pct<3> {
         Pct::new(self.wins, self.wins + self.losses)
     }
 
     pub fn earned_run_average(&self) -> Pct<2> {
         Pct::new(self.earned_runs * 27, self.outs_recorded)
-    }
-
-    pub fn era_plus(&self, league: Stats) -> Pct<0> {
-        let pct = league.earned_run_average().0 / self.earned_run_average().0;
-        Pct(pct * 100.into())
     }
 
     pub fn innings_pitched(&self) -> String {
@@ -356,6 +351,11 @@ impl Stats {
 
     pub fn struck_outs_walks_ratio(&self) -> Pct<2> {
         Pct::new(self.struck_outs, self.walks_issued)
+    }
+
+    pub fn era_plus(&self, league: Stats) -> Pct<0> {
+        let pct = league.earned_run_average().0 / self.earned_run_average().0;
+        Pct(pct * 100.into())
     }
 
     pub fn pitches_strikes(&self) -> String {

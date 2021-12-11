@@ -33,6 +33,10 @@ impl Fraction {
         }
     }
 
+    pub fn to_f64(self) -> f64 {
+        self.numer as f64 / self.denom as f64
+    }
+
     fn is_overflow(self) -> bool {
         self.numer == i64::MAX && self.denom == u64::MAX
     }
@@ -141,7 +145,7 @@ impl Display for Fraction {
             })
         } else {
             let leading_zero = f.alternate();
-            let precision = f.precision().unwrap_or(16);
+            let precision = f.precision().unwrap_or(3);
 
             let mult = 10_i64.pow(u32::try_from(precision).map_err(|_| fmt::Error)?);
             let mult_frac = Fraction {
@@ -183,7 +187,7 @@ mod tests {
         ($oper:tt, $a:expr, $b:expr, $c:expr, $d:expr) => {{
             let frac = f!($a.into(), $b.into()) $oper f!($c.into(), $d.into());
             prop_assume!(!frac.is_overflow());
-            let frac = frac.numer as f64 / frac.denom as f64;
+            let frac = frac.to_f64();
             let float = ($a as f64 / $b as f64) $oper ($c as f64 / $d as f64);
             if !((frac.is_nan() && float.is_nan())
                 || (frac.is_infinite() && float.is_infinite() && frac.signum() == float.signum()))
@@ -276,5 +280,11 @@ mod tests {
         bad!(NEG_INFINITY, NAN);
         bad!(NEG_INFINITY, INFINITY);
         bad!(NEG_INFINITY, NEG_INFINITY);
+
+        assert!(NAN.to_f64().is_nan());
+        assert!(INFINITY.to_f64().is_infinite());
+        assert!(INFINITY.to_f64().is_sign_positive());
+        assert!(NEG_INFINITY.to_f64().is_infinite());
+        assert!(NEG_INFINITY.to_f64().is_sign_negative());
     }
 }

@@ -1,4 +1,5 @@
 use crate::fraction::Fraction;
+use serde::{Serialize, Serializer};
 use std::fmt::{self, Display};
 
 #[derive(Debug, Clone, Copy)]
@@ -21,6 +22,15 @@ impl<const PRECISION: u8> Display for Pct<PRECISION> {
         } else {
             write!(f, "{:0>.width$}", self.0, width = PRECISION.into())
         }
+    }
+}
+
+impl<const PRECISION: u8> Serialize for Pct<PRECISION> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.0.to_f64().serialize(serializer)
     }
 }
 

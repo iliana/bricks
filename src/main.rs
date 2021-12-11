@@ -1,6 +1,8 @@
 mod batting;
 mod chronicler;
+mod csv;
 mod debug;
+mod export;
 mod feed;
 mod fraction;
 mod game;
@@ -160,6 +162,10 @@ fn rocket() -> _ {
                 routes::css,
                 routes::debug::debug,
                 routes::debug::errors,
+                routes::export::season_player_summary_csv,
+                routes::export::season_player_summary_json,
+                routes::export::season_team_summary_csv,
+                routes::export::season_team_summary_json,
                 routes::game::game,
                 routes::index,
                 routes::jump,
