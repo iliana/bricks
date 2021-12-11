@@ -61,14 +61,14 @@
     href="/season{% if !is_players %}/team{% endif %}/{{ season.sim }}/{{ season.season }}/export.csv"
     class="no-underline"
   >
-    {% include "software-download.svg" %}
+    <span class="icon">{% include "software-download.svg" %}</span>
     <span class="underline">CSV</span>
   </a>
   <a
     href="/season{% if !is_players %}/team{% endif %}/{{ season.sim }}/{{ season.season }}/export.json"
     class="no-underline"
   >
-    {% include "software-download.svg" %}
+    <span class="icon">{% include "software-download.svg" %}</span>
     <span class="underline">JSON</span>
   </a>
 </div>

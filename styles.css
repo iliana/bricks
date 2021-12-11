@@ -20,7 +20,7 @@
     @apply box-content;
   }
 
-  svg {
+  .icon svg {
     @apply inline h-5 w-5 md:h-6 md:w-6;
     vertical-align: -0.375em;
   }
