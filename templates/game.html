@@ -65,7 +65,7 @@
       {% for team in game %}
       <tr>
         <th class="text-left pr-2">
-          {{ team.name.emoji }}
+          <span class="font-normal">{{ team.name.emoji }}</span>
           <a href="/team/{{ team.id }}/{{ game.season.sim }}/{{ game.season.season }}">{{ team.name.shorthand }}</a>
         </th>
         {% for (_, runs) in team.inning_runs %}
