@@ -5,11 +5,13 @@ use anyhow::Result;
 use lazy_static::lazy_static;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use rand_distr::LogNormal as RngLogNormal;
+use rocket::futures::stream::{self, StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use zerocopy::AsBytes;
 
 use std::collections::BTreeMap;
+use std::time::Instant;
 
 use crate::chronicler::Key;
 use crate::{CLIENT, DB, WEBCRISP_BASE};
@@ -27,7 +29,7 @@ lazy_static! {
     };
 }
 
-static SOULSCREAM_LETTERS: [&'static str; 10] = ["A", "E", "I", "O", "U", "X", "H", "A", "E", "I"];
+static SOULSCREAM_LETTERS: [&str; 10] = ["A", "E", "I", "O", "U", "X", "H", "A", "E", "I"];
 
 /// Simplified configuration required for a full CRiSP simulation.
 #[derive(Debug, Default, Serialize)]
@@ -297,23 +299,40 @@ pub struct FisheryResults {
 
 pub async fn process_players(players: Vec<(Key, SalmonblallPlayer)>) -> Result<()> {
     let tree = DB.open_tree(TREE)?;
-    for (key, player) in players {
-        if !tree.contains_key(key.as_bytes())? {
-            let parameters = player.generate_n_simulations(*SALMON_SIMULATION_QUANTITY);
+    stream::iter(players)
+        .map(Ok)
+        .try_for_each_concurrent(25, |(k, v)| process_single_player(k, v, &tree))
+        .await
+}
 
-            let response = CLIENT
-                .post(format!("{}/batch_simple_sim", WEBCRISP_BASE))
-                .json(&parameters)
-                .send()
-                .await?
-                .json::<Vec<RawSimResults>>()
-                .await?
-                .into_iter()
-                .map(|sim| sim.process().map(|mut t| t.remove("Fishy T").unwrap()))
-                .collect::<Result<Vec<FisheryResults>>>()?;
+async fn process_single_player(
+    key: Key,
+    player: SalmonblallPlayer,
+    tree: &sled::Tree,
+) -> Result<()> {
+    if !tree.contains_key(key.as_bytes())? {
+        let parameters = player.generate_n_simulations(*SALMON_SIMULATION_QUANTITY);
 
-            tree.insert(key.as_bytes(), serde_json::to_vec(&response)?)?;
-        }
+        let start = Instant::now();
+
+        let response = CLIENT
+            .post(format!("{}/batch_simple_sim", WEBCRISP_BASE))
+            .json(&parameters)
+            .send()
+            .await?
+            .json::<Vec<RawSimResults>>()
+            .await?
+            .into_iter()
+            .map(|sim| sim.process().map(|mut t| t.remove("Fishy T").unwrap()))
+            .collect::<Result<Vec<FisheryResults>>>()?;
+
+        tree.insert(key.as_bytes(), serde_json::to_vec(&response)?)?;
+
+        log::info!(
+            "processed CRiSP simulations for {} in {:?}",
+            player.id,
+            start.elapsed()
+        );
     }
 
     Ok(())
