@@ -59,22 +59,65 @@ pub async fn load<T: DeserializeOwned>(
     Ok(Some(value))
 }
 
-#[derive(AsBytes, FromBytes)]
+/// Updates chronicler cache with all entities of a certain type, returning all entities
+pub async fn update_and_load_all<T: DeserializeOwned>(ty: &'static str) -> Result<Vec<(Key, T)>> {
+    let tree = DB.open_tree(format!("cache_chronicler_v1_{}", ty.to_ascii_lowercase()))?;
+
+    let mut results = Vec::new();
+
+    let response = CLIENT
+        .get(format!("{}/v2/entities?type={}", CHRONICLER_BASE, ty,))
+        .send()
+        .await?;
+
+    let response_time: DateTime<Utc> = DateTime::parse_from_rfc2822(
+        response
+            .headers()
+            .get("date")
+            .context("no date header in response")?
+            .to_str()?,
+    )?
+    .into();
+
+    let versions: Versions = response.json().await?;
+
+    for version in versions.items {
+        let key = Key::new(version.entity_id, version.valid_from);
+        if let Some(value) = tree.get(key.as_bytes())? {
+            results.push((key, serde_json::from_slice::<Value<T>>(&value)?.data));
+        } else {
+            let value = serde_json::from_str(version.data.get())?;
+            results.push((key, value));
+
+            tree.insert(
+                key.as_bytes(),
+                serde_json::to_vec(&Value {
+                    valid_to: version.valid_to.unwrap_or(response_time),
+                    data: version.data,
+                })?,
+            )?;
+        }
+    }
+
+    Ok(results)
+}
+
+#[derive(Copy, Clone, AsBytes, FromBytes)]
 #[repr(C)]
-struct Key {
+pub struct Key {
     id: [u8; 16],
     valid_from: I64<BigEndian>,
 }
 
 impl Key {
-    fn new(id: Uuid, valid_from: DateTime<Utc>) -> Key {
+    pub fn new(id: Uuid, valid_from: DateTime<Utc>) -> Key {
         Key {
             id: *id.as_bytes(),
             valid_from: valid_from.timestamp_nanos().into(),
         }
     }
 
-    fn valid_from(&self) -> DateTime<Utc> {
+    pub fn valid_from(&self) -> DateTime<Utc> {
         Utc.timestamp_nanos(self.valid_from.into())
     }
 }
@@ -94,6 +137,7 @@ struct Versions {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Version {
+    entity_id: Uuid,
     valid_from: DateTime<Utc>,
     valid_to: Option<DateTime<Utc>>,
     data: Box<RawValue>,

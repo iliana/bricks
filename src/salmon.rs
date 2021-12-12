@@ -1,12 +1,31 @@
 // i'm so sorry - allie
 #![allow(dead_code)]
 
+use anyhow::Result;
+use lazy_static::lazy_static;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use rand_distr::LogNormal as RngLogNormal;
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+use zerocopy::AsBytes;
+
+use std::collections::BTreeMap;
+
+use crate::chronicler::Key;
+use crate::{CLIENT, DB, WEBCRISP_BASE};
 
 type LogNormal = RngLogNormal<f64>;
 
-use serde::{Deserialize, Serialize};
+pub const TREE: &str = "salmon_v1";
+
+lazy_static! {
+    static ref SALMON_SIMULATION_QUANTITY: usize = {
+        std::env::var("BRICKS_SALMON_SIMULATION_QUANTITY")
+            .ok()
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or(50)
+    };
+}
 
 static SOULSCREAM_LETTERS: [&'static str; 10] = ["A", "E", "I", "O", "U", "X", "H", "A", "E", "I"];
 
@@ -51,18 +70,19 @@ pub struct SalmonFishery {
 /// A salmonblall player; stores the minimum subset of information needed to calculate CRiSP simulation parameters and soulscream.
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct SalmonblallPlayer {
-    pub(crate) pressurization: f64,
-    pub(crate) tragicness: f64,
-    pub(crate) shakespearianism: f64,
-    pub(crate) ruthlessness: f64,
-    pub(crate) chasiness: f64,
-    pub(crate) anticapitalism: f64,
-    pub(crate) moxie: f64,
-    pub(crate) divinity: f64,
-    pub(crate) indulgence: f64,
-    pub(crate) buoyancy: f64,
-    pub(crate) watchfulness: f64,
-    pub(crate) soul: i32,
+    pub id: Uuid,
+    pub pressurization: f64,
+    pub tragicness: f64,
+    pub shakespearianism: f64,
+    pub ruthlessness: f64,
+    pub chasiness: f64,
+    pub anticapitalism: f64,
+    pub moxie: f64,
+    pub divinity: f64,
+    pub indulgence: f64,
+    pub buoyancy: f64,
+    pub watchfulness: f64,
+    pub soul: i32,
 }
 
 fn stat_soulscream(s: f64, j: f64) -> &'static str {
@@ -81,7 +101,6 @@ impl SalmonblallPlayer {
 
         for i in 0..self.soul {
             if s.len() >= byte_limit {
-                s.truncate(byte_limit);
                 return s;
             }
 
@@ -115,7 +134,11 @@ impl SalmonblallPlayer {
                     .try_into()
                     .unwrap()
             } else {
-                s.into_bytes().try_into().unwrap()
+                s.into_bytes()
+                    .drain(0..32)
+                    .collect::<Vec<u8>>()
+                    .try_into()
+                    .unwrap()
             }
         };
 
@@ -212,6 +235,115 @@ impl SalmonblallPlayer {
         }
     }
 }
+
+// ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<>
+
+// so the webcrisp api has some weird data modeling from allie from a year ago and crisp from way more than a year ago.
+// this struct helps smooth over that by making the raw sim results into a saner data structure
+#[derive(Debug, Deserialize)]
+struct RawSimResults {
+    catch: BTreeMap<String, BTreeMap<String, i64>>,
+    abundances: BTreeMap<String, Vec<[String; 2]>>,
+    stocks: BTreeMap<String, BTreeMap<String, Vec<[i64; 2]>>>,
+}
+
+impl RawSimResults {
+    fn process(self) -> Result<BTreeMap<String, FisheryResults>> {
+        let mut res: BTreeMap<String, FisheryResults> = BTreeMap::new();
+        for (fishery, catches_by_year) in self.catch {
+            let entry = res.entry(fishery.to_owned()).or_default();
+            for (year, val) in catches_by_year {
+                entry.catches.push((year.parse::<i64>()?, val));
+            }
+            entry.catches.sort_by(|a, b| a.0.cmp(&b.0));
+        }
+
+        for (fishery, abundances_by_year) in self.abundances {
+            let entry = res.entry(fishery.to_owned()).or_default();
+            for v in abundances_by_year {
+                let (year, val) = (&v[0], &v[1]);
+
+                entry
+                    .abundances
+                    .push((year.parse::<i64>()?, val.parse::<i64>()?));
+            }
+
+            entry.abundances.sort_by(|a, b| a.0.cmp(&b.0));
+        }
+
+        for (stock, fisheries) in self.stocks {
+            for (fishery, vals) in fisheries {
+                res.entry(fishery.to_owned()).or_default().stocks.insert(
+                    stock.to_owned(),
+                    vals.into_iter().map(|v| (v[0], v[1])).collect(),
+                );
+            }
+        }
+
+        Ok(res)
+    }
+}
+
+// just to make things clear
+type Year = i64;
+
+/// CRiSP results for a fishery.
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct FisheryResults {
+    pub catches: Vec<(Year, i64)>, // year : catches
+    pub abundances: Vec<(Year, i64)>,
+    pub stocks: BTreeMap<String, Vec<(Year, i64)>>,
+}
+
+pub async fn process_players(players: Vec<(Key, SalmonblallPlayer)>) -> Result<()> {
+    let tree = DB.open_tree(TREE)?;
+    for (key, player) in players {
+        if !tree.contains_key(key.as_bytes())? {
+            let parameters = player.generate_n_simulations(*SALMON_SIMULATION_QUANTITY);
+
+            let response = CLIENT
+                .post(format!("{}/batch_simple_sim", WEBCRISP_BASE))
+                .json(&parameters)
+                .send()
+                .await?
+                .json::<Vec<RawSimResults>>()
+                .await?
+                .into_iter()
+                .map(|sim| sim.process().map(|mut t| t.remove("Fishy T").unwrap()))
+                .collect::<Result<Vec<FisheryResults>>>()?;
+
+            // pick best result
+            let mut best_score = i64::MIN;
+            let mut best_sim = None;
+
+            for sim in response {
+                let mut score: i64 = 0;
+                if sim.abundances.last().map(|(_, v)| *v).unwrap_or(0) > 0 {
+                    score += 1_000_000;
+                }
+
+                score += sim.stocks["SIB"]
+                    .windows(2)
+                    .map(|w| w[0].1 - w[1].1)
+                    .sum::<i64>()
+                    / sim.stocks["SIB"].len() as i64;
+
+                if score >= best_score {
+                    best_score = score;
+                    best_sim = Some(sim);
+                }
+            }
+
+            if let Some(sim) = best_sim {
+                tree.insert(key.as_bytes(), serde_json::to_vec(&sim)?)?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+// ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<>
 
 #[cfg(test)]
 mod tests {
