@@ -35,7 +35,7 @@ const API_BASE: &str = "https://api.blaseball.com";
 const CHRONICLER_BASE: &str = "https://api.sibr.dev/chronicler";
 const CONFIGS_BASE: &str = "https://blaseball-configs.s3.us-west-2.amazonaws.com";
 const SACHET_BASE: &str = "https://api.sibr.dev/eventually/sachet";
-const WEBCRISP_BASE: &str = "http://localhost:9999/api";
+const WEBCRISP_BASE: &str = "https://crisp.sibr.dev/api";
 
 static REBUILDING: AtomicBool = AtomicBool::new(false);
 
