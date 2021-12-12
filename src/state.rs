@@ -5,7 +5,7 @@ use anyhow::{bail, ensure, Context, Result};
 use indexmap::IndexMap;
 use serde::Serialize;
 use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 #[derive(Debug, Serialize)]
@@ -28,6 +28,8 @@ pub struct State {
     on_base_start_of_play: IndexMap<Uuid, (Uuid, u16)>,
     #[serde(skip)]
     expected: (u16, u16),
+    #[serde(skip)]
+    mods: HashSet<(Uuid, &'static str)>,
 }
 
 impl State {
@@ -62,6 +64,7 @@ impl State {
             on_base: IndexMap::new(),
             on_base_start_of_play: IndexMap::new(),
             expected: (0, 0),
+            mods: HashSet::new(),
         }
     }
 
@@ -373,9 +376,24 @@ impl State {
                 checkdesc!(desc == "A surge of Immateria rushes up from Under!\nBaserunners are swept from play!");
                 self.on_base.clear();
             }
-            73 => {}              // peanut flavor text
-            84 => {}              // player returned from Elsewhere
-            106 | 107 | 146 => {} // added/removed modification
+            73 => {} // peanut flavor text
+            84 => {} // player returned from Elsewhere
+            106 | 107 | 146 | 147 => {
+                // modification added or removed
+                ensure!(event.player_tags.len() == 1, "invalid player tag count");
+                match &event.metadata.extra {
+                    Some(ExtraData::Modification { r#mod: m }) => {
+                        if let Some(m) = &["FROZEN"].iter().copied().find(|x| x == m) {
+                            if event.ty & 1 == 0 {
+                                self.mods.insert((event.player_tags[0], m));
+                            } else {
+                                self.mods.remove(&(event.player_tags[0], m));
+                            }
+                        }
+                    }
+                    _ => bail!("missing modification data"),
+                }
+            }
             113 => {
                 // Trade (e.g. Feedback swap)
                 checkdesc!(desc.ends_with("were swapped in Feedback."));
@@ -535,6 +553,15 @@ impl State {
                     }
                 }
             }
+
+            let crisp = self
+                .on_base
+                .iter()
+                .filter_map(|(id, (_, base))| {
+                    (*base > 0 && self.mods.contains(&(*id, "FROZEN"))).then(|| *id)
+                })
+                .collect::<Vec<_>>();
+            self.offense_mut().crisp.extend(crisp);
 
             self.last_runs_cmp = self.runs_cmp();
             self.on_base_start_of_play = self.on_base.clone();

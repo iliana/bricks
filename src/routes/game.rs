@@ -309,6 +309,16 @@ fn baserunning_lines(team: &Team, names: &HashMap<Uuid, String>) -> Vec<Line> {
             abbr: "CS",
             data: build_line(&team.stats, names, |s| s.caught_stealing, false),
         },
+        Line {
+            title: "Cold Runner in Scoring Position",
+            abbr: "CRiSP",
+            data: team
+                .crisp
+                .iter()
+                .map(|id| names.get(id).map(String::as_str).unwrap_or_default())
+                .collect::<Vec<_>>()
+                .join("; "),
+        },
     ];
     lines.retain(|line| !line.data.is_empty());
     lines

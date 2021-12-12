@@ -120,6 +120,7 @@ pub struct PitcherData {
 #[derive(Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(untagged)]
 pub enum ExtraData {
+    Modification { r#mod: String },
     Trade(PlayerTradeData),
     Swap(PlayerSwapData),
     Incineration(IncinerationReplacementData),

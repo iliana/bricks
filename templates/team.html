@@ -23,7 +23,7 @@
 {% block title %}{{ team.name }}{% endblock %}
 
 {% block content %}
-<h1>{{ team.emoji }} {{ team.name }}</h1>
+<h1><span class="font-normal">{{ team.emoji }}</span> {{ team.name }}</h1>
 
 <form action="/jump" method="get">
   <select autocomplete="off" class="form-select bg-transparent md:text-lg lg:text-xl" name="path">

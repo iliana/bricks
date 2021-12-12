@@ -40,7 +40,7 @@ const WEBCRISP_BASE: &str = "https://crisp.sibr.dev/api";
 static REBUILDING: AtomicBool = AtomicBool::new(false);
 
 // Increment this if you need to force a rebuild.
-const DB_VERSION: &[u8] = &[11];
+const DB_VERSION: &[u8] = &[13];
 const CLEAR_ON_REBUILD: &[&str] = &[summary::TREE, summary::SEASON_TREE];
 const OLD_TREES: &[&str] = &[];
 
