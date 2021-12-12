@@ -312,35 +312,36 @@ pub async fn process_players(players: Vec<(Key, SalmonblallPlayer)>) -> Result<(
                 .map(|sim| sim.process().map(|mut t| t.remove("Fishy T").unwrap()))
                 .collect::<Result<Vec<FisheryResults>>>()?;
 
-            // pick best result
-            let mut best_score = i64::MIN;
-            let mut best_sim = None;
-
-            for sim in response {
-                let mut score: i64 = 0;
-                if sim.abundances.last().map(|(_, v)| *v).unwrap_or(0) > 0 {
-                    score += 1_000_000;
-                }
-
-                score += sim.stocks["SIB"]
-                    .windows(2)
-                    .map(|w| w[0].1 - w[1].1)
-                    .sum::<i64>()
-                    / sim.stocks["SIB"].len() as i64;
-
-                if score >= best_score {
-                    best_score = score;
-                    best_sim = Some(sim);
-                }
-            }
-
-            if let Some(sim) = best_sim {
-                tree.insert(key.as_bytes(), serde_json::to_vec(&sim)?)?;
-            }
+            tree.insert(key.as_bytes(), serde_json::to_vec(&response)?)?;
         }
     }
 
     Ok(())
+}
+
+pub async fn pick_best_result(all: Vec<FisheryResults>) -> Option<FisheryResults> {
+    let mut best_score = i64::MIN;
+    let mut best_sim = None;
+
+    for sim in all {
+        let mut score: i64 = 0;
+        if sim.abundances.last().map(|(_, v)| *v).unwrap_or(0) > 0 {
+            score += 1_000_000;
+        }
+
+        score += sim.stocks["SIB"]
+            .windows(2)
+            .map(|w| w[0].1 - w[1].1)
+            .sum::<i64>()
+            / sim.stocks["SIB"].len() as i64;
+
+        if score >= best_score {
+            best_score = score;
+            best_sim = Some(sim);
+        }
+    }
+
+    best_sim
 }
 
 // ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<>
