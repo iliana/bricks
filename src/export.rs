@@ -92,6 +92,7 @@ impl<'a> Exportable for WithLeagueStats<Stats> {
             on_base_percentage,
             slugging_percentage,
             on_base_plus_slugging,
+            batting_average_on_balls_in_play,
         );
         map!(@func_league, ?is_batting, ops_plus);
 

@@ -309,6 +309,13 @@ impl Stats {
         Pct(self.on_base_percentage().0 + self.slugging_percentage().0)
     }
 
+    pub fn batting_average_on_balls_in_play(&self) -> Pct<3> {
+        Pct::new(
+            self.hits() - self.home_runs,
+            self.at_bats - self.strike_outs - self.home_runs + self.sacrifice_flies,
+        )
+    }
+
     pub fn ops_plus(&self, league: Stats) -> Pct<0> {
         let obp = self.on_base_percentage().0 / league.on_base_percentage().0;
         let slg = self.slugging_percentage().0 / league.slugging_percentage().0;
