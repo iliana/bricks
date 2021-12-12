@@ -105,7 +105,7 @@ pub async fn update_and_load_all<T: DeserializeOwned>(ty: &'static str) -> Resul
 #[derive(Copy, Clone, AsBytes, FromBytes)]
 #[repr(C)]
 pub struct Key {
-    id: [u8; 16],
+    pub id: [u8; 16],
     valid_from: I64<BigEndian>,
 }
 

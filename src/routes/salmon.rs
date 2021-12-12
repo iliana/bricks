@@ -8,7 +8,7 @@ use chrono::Utc;
 use rocket::get;
 use rocket::response::content::Html;
 use uuid::Uuid;
-use zerocopy::AsBytes;
+use zerocopy::{AsBytes, FromBytes};
 
 #[get("/salmon/<id>")]
 pub fn salmon_page(id: Uuid) -> ResponseResult<Option<Html<String>>> {
@@ -25,15 +25,19 @@ fn load_player(id: Uuid) -> Result<Option<SalmonPage>> {
     };
 
     let salmon_tree = DB.open_tree(salmon::SUMMARY_TREE)?;
-    if let Some((_, summary)) = salmon_tree.get_lt(Key::new(id, Utc::now()).as_bytes())? {
-        Ok(Some(SalmonPage {
-            name,
-            id,
-            salmon: salmon::table(serde_json::from_slice(&summary)?),
-        }))
-    } else {
-        Ok(None)
+    if let Some((key, summary)) = salmon_tree.get_lt(Key::new(id, Utc::now()).as_bytes())? {
+        if let Some(key) = Key::read_from(&*key) {
+            if &key.id == id.as_bytes() {
+                return Ok(Some(SalmonPage {
+                    name,
+                    id,
+                    salmon: salmon::table(serde_json::from_slice(&summary)?),
+                }));
+            }
+        }
     }
+
+    Ok(None)
 }
 
 #[derive(Template)]
