@@ -14,11 +14,15 @@ use std::collections::BTreeMap;
 use std::time::Instant;
 
 use crate::chronicler::Key;
+use crate::fraction::Fraction;
+use crate::percentage::Pct;
+use crate::table::{row, Table};
 use crate::{CLIENT, DB, WEBCRISP_BASE};
 
 type LogNormal = RngLogNormal<f64>;
 
-pub const TREE: &str = "salmon_v1";
+pub const CACHE_TREE: &str = "salmon_cache_v1";
+pub const SUMMARY_TREE: &str = "salmon_summary_v1";
 
 lazy_static! {
     static ref SALMON_SIMULATION_QUANTITY: usize = {
@@ -298,35 +302,87 @@ pub struct FisheryResults {
 }
 
 pub async fn process_players(players: Vec<(Key, SalmonblallPlayer)>) -> Result<()> {
-    let tree = DB.open_tree(TREE)?;
+    let summary_tree = DB.open_tree(SUMMARY_TREE)?;
+    let cache_tree = DB.open_tree(CACHE_TREE)?;
+
     stream::iter(players)
         .map(Ok)
-        .try_for_each_concurrent(25, |(k, v)| process_single_player(k, v, &tree))
+        .try_for_each_concurrent(25, |(k, v)| {
+            process_single_player(k, v, &cache_tree, &summary_tree)
+        })
         .await
 }
 
 async fn process_single_player(
     key: Key,
     player: SalmonblallPlayer,
-    tree: &sled::Tree,
+    cache_tree: &sled::Tree,
+    summary_tree: &sled::Tree,
 ) -> Result<()> {
-    if !tree.contains_key(key.as_bytes())? {
-        let parameters = player.generate_n_simulations(*SALMON_SIMULATION_QUANTITY);
-
+    if !summary_tree.contains_key(key.as_bytes())? {
         let start = Instant::now();
 
-        let response = CLIENT
-            .post(format!("{}/batch_simple_sim", WEBCRISP_BASE))
-            .json(&parameters)
-            .send()
-            .await?
-            .json::<Vec<RawSimResults>>()
-            .await?
-            .into_iter()
-            .map(|sim| sim.process().map(|mut t| t.remove("Fishy T").unwrap()))
-            .collect::<Result<Vec<FisheryResults>>>()?;
+        let results = if let Some(ref cached) = cache_tree.get(key.as_bytes())? {
+            serde_json::from_slice(cached)?
+        } else {
+            let parameters = player.generate_n_simulations(*SALMON_SIMULATION_QUANTITY);
 
-        tree.insert(key.as_bytes(), serde_json::to_vec(&response)?)?;
+            let response = CLIENT
+                .post(format!("{}/batch_simple_sim", WEBCRISP_BASE))
+                .json(&parameters)
+                .send()
+                .await?
+                .json::<Vec<RawSimResults>>()
+                .await?
+                .into_iter()
+                .map(|sim| sim.process().map(|mut t| t.remove("Fishy T").unwrap()))
+                .collect::<Result<Vec<FisheryResults>>>()?;
+
+            cache_tree.insert(key.as_bytes(), serde_json::to_vec(&response)?)?;
+
+            response
+        };
+
+        let successful = results.iter().fold(0, |acc, sim| {
+            if let Some(v) = sim.stocks.get("SIB").and_then(|r| r.last()) {
+                if v.1 > 0 {
+                    return acc + 1;
+                }
+            }
+
+            acc
+        });
+
+        let (years, decrease) = results
+            .iter()
+            .flat_map(|sim| {
+                sim.stocks["SIB"]
+                    .windows(2)
+                    .take_while(|v| v[0].1 > 0 && v[1].1 > 0)
+                    .map(|v| Fraction::new(v[1].1, v[0].1 as u64).round())
+                    .collect::<Vec<i64>>()
+            })
+            .fold((0, 0), |(l, acc), x| (l + 1, acc + x));
+
+        let avg_decrease = Fraction::new(decrease, years) * 100.into();
+
+        let mut times_until_extinction = results
+            .iter()
+            .map(|sim| sim.stocks["SIB"].iter().take_while(|(_, v)| v > &0).count() as i64)
+            .collect::<Vec<i64>>();
+        times_until_extinction.sort_unstable();
+
+        summary_tree.insert(
+            key.as_bytes(),
+            serde_json::to_vec(&SalmonblallSummary {
+                successful,
+                total: results.len(),
+                failed: results.len() - successful,
+                avg_decrease_nom: avg_decrease.numer,
+                avg_decrease_denom: avg_decrease.denom,
+                time_until_extinction: times_until_extinction[times_until_extinction.len() / 2],
+            })?,
+        )?;
 
         log::info!(
             "processed CRiSP simulations for {} in {:?}",
@@ -336,6 +392,18 @@ async fn process_single_player(
     }
 
     Ok(())
+}
+
+// ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<>
+
+#[derive(Serialize, Deserialize)]
+pub struct SalmonblallSummary {
+    pub total: usize,
+    pub successful: usize,
+    pub failed: usize,
+    pub avg_decrease_nom: i64,
+    pub avg_decrease_denom: u64,
+    pub time_until_extinction: i64,
 }
 
 pub async fn pick_best_result(all: Vec<FisheryResults>) -> Option<FisheryResults> {
@@ -361,6 +429,34 @@ pub async fn pick_best_result(all: Vec<FisheryResults>) -> Option<FisheryResults
     }
 
     best_sim
+}
+
+pub const COLS: usize = 3;
+
+pub fn table(salmon: SalmonblallSummary) -> Table<COLS> {
+    let mut table = Table::new(
+        [
+            ("Median Time Until Extinction", "MTUE"),
+            ("Failures in Salmon Harvesting", "FISH%"),
+            (
+                "Average year-by-year decrease in salmon populations",
+                "ADSP%",
+            ),
+        ],
+        "text-right",
+        "number",
+    );
+
+    table.push(row![
+        format!("{} yrs", salmon.time_until_extinction),
+        Pct::<2>(Fraction::new(salmon.failed as i64, salmon.total as u64) * 100.into()),
+        Pct::<2>(Fraction::new(
+            salmon.avg_decrease_nom,
+            salmon.avg_decrease_denom
+        ))
+    ]);
+
+    table
 }
 
 // ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<> ::<>

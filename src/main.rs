@@ -41,7 +41,7 @@ static REBUILDING: AtomicBool = AtomicBool::new(false);
 
 // Increment this if you need to force a rebuild.
 const DB_VERSION: &[u8] = &[13];
-const CLEAR_ON_REBUILD: &[&str] = &[summary::TREE, summary::SEASON_TREE];
+const CLEAR_ON_REBUILD: &[&str] = &[summary::TREE, summary::SEASON_TREE, salmon::SUMMARY_TREE];
 const OLD_TREES: &[&str] = &[];
 
 lazy_static::lazy_static! {
@@ -183,6 +183,7 @@ fn rocket() -> _ {
                 routes::tablesort,
                 routes::tablesort_number,
                 routes::team::team,
+                routes::salmon::salmon_page,
             ],
         )
         .attach(AdHoc::on_liftoff("Background tasks", |_rocket| {

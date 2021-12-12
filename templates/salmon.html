@@ -1,0 +1,26 @@
+{% import "macros.html" as macros %} {% extends "base.html" %}
+
+<!-- prettier-ignore -->
+{% block title %}{{ name }}{% endblock %}
+
+{% block content %}
+<h1>{{ name }}</h1>
+<ul class="space-x-4 -mt-3 md:-mt-3.5 lg:-mt-4">
+  <li class="inline"><a href="/player/{{ id }}">Blaseball statistics</a></li>
+  <li class="inline"><a href="https://www.blaseball.com/player/{{ id }}">Player card</a></li>
+</ul>
+<div class="space-y-4 mt-4">
+  {% if !salmon.rows.is_empty() %}
+  <h2>Standard Fishing</h2>
+  {% call macros::table(salmon, "sort leading-loose tabular-nums") %}
+  <!-- prettier-ignore -->
+  {% endif %}
+
+  <h2>Glossary</h2>
+  <ul class="mt-0.5 md:mt-1 leading-loose">
+    <li><b>MTUE</b>: Median Time Until Extinction. What's the median length of time that this player's salmon stocks survive for?
+    <li><b>FISH%</b>: Failures In Salmon Harvesting. In what percentage of simulations did this player cause salmon to go extinct?
+    <li><b>ADSP%</b>: Average Decrease in Salmon Populations. Average year-by-year decrease of salmon stocks managed by this player.
+  </ul>
+</div>
+{% endblock %}
