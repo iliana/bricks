@@ -30,6 +30,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 use uuid::Uuid;
 
+const GITHUB_SHA: Option<&str> = option_env!("GITHUB_SHA");
+
 const API_BASE: &str = "https://api.blaseball.com";
 const CHRONICLER_BASE: &str = "https://api.sibr.dev/chronicler";
 const CONFIGS_BASE: &str = "https://blaseball-configs.s3.us-west-2.amazonaws.com";
@@ -202,16 +204,27 @@ fn rocket() -> _ {
             Box::pin(async move {
                 if response.content_type() == Some(ContentType::HTML) {
                     if let Ok(html) = response.body_mut().take().to_string().await {
-                        const NEEDLE: &str = "<p data-rebuild class=\"hidden";
+                        const HIDDEN: &str = "<p data-rebuild class=\"hidden";
                         const UNHIDE: &[u8] = b"<p data-rebuild class=\"      ";
-                        const _: () = assert!(NEEDLE.len() == UNHIDE.len());
+                        const _: () = assert!(HIDDEN.len() == UNHIDE.len());
 
-                        let rebuild_pos = html.find(NEEDLE);
+                        const COMMIT: &str = "@COMMIT@";
+
+                        let rebuild_pos = html.find(HIDDEN);
+                        let commit_pos = (html.find(COMMIT), html.rfind(COMMIT));
                         let mut html = html.into_bytes();
 
                         if REBUILDING.load(Ordering::Relaxed) {
                             if let Some(pos) = rebuild_pos {
                                 (&mut html[pos..(pos + UNHIDE.len())]).copy_from_slice(UNHIDE);
+                            }
+                        }
+                        if let Some(short) = GITHUB_SHA.and_then(|s| s.get(..8)) {
+                            if let (Some(left), Some(right)) = commit_pos {
+                                for pos in [left, right] {
+                                    (&mut html[pos..(pos + COMMIT.len())])
+                                        .copy_from_slice(short.as_bytes());
+                                }
                             }
                         }
                         response.set_sized_body(html.len(), std::io::Cursor::new(html.clone()));
