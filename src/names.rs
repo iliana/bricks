@@ -35,7 +35,12 @@ pub struct TeamName {
 impl TeamName {
     pub fn emoji_hash(&self) -> u64 {
         let mut hasher = twox_hash::XxHash64::default();
-        self.emoji.hash(&mut hasher);
+        if self.name == "Ohio Peanuts" && self.emoji == "\u{1f95c}\u{fe0f}" {
+            "\u{1f40c}\u{fe0f}"
+        } else {
+            &self.emoji
+        }
+        .hash(&mut hasher);
         hasher.finish()
     }
 

@@ -97,13 +97,11 @@ pub async fn process(season: Season, id: Uuid, force: bool) -> Result<bool> {
                             names_tree.insert(id.as_bytes(), name.as_bytes())?;
                         }
 
-                        if team.name.shorthand != "PNUT" {
-                            let mut common_key = Vec::new();
-                            common_key.extend_from_slice(&team.name.emoji_hash().to_ne_bytes());
-                            common_key.extend_from_slice(&game.season.season.to_ne_bytes());
-                            common_key.extend_from_slice(game.season.sim.as_bytes());
-                            common_names_tree.insert(common_key, team.id.as_bytes())?;
-                        }
+                        let mut common_key = Vec::new();
+                        common_key.extend_from_slice(&team.name.emoji_hash().to_ne_bytes());
+                        common_key.extend_from_slice(&game.season.season.to_ne_bytes());
+                        common_key.extend_from_slice(game.season.sim.as_bytes());
+                        common_names_tree.insert(common_key, team.id.as_bytes())?;
                     }
 
                     summary::write_summary(summary_tree, season_summary_tree, &game)?;
