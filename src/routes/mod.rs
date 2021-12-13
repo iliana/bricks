@@ -6,8 +6,9 @@ pub mod season;
 pub mod team;
 
 use crate::seasons::Season;
+use askama::Template;
 use rocket::http::{uri::Origin, ContentType};
-use rocket::response::{status::BadRequest, Debug, Redirect};
+use rocket::response::{content::Html, status::BadRequest, Debug, Redirect};
 use rocket::{get, Either};
 
 type ResponseResult<T> = std::result::Result<T, Debug<anyhow::Error>>;
@@ -20,6 +21,15 @@ pub fn index() -> ResponseResult<Option<Redirect>> {
         .rev()
         .next()
         .map(|season| Redirect::to(season.uri(&true, &true))))
+}
+
+#[get("/glossary")]
+pub fn glossary() -> ResponseResult<Html<String>> {
+    #[derive(Template)]
+    #[template(path = "glossary.html")]
+    struct Glossary;
+
+    Ok(Html(Glossary.render().map_err(anyhow::Error::from)?))
 }
 
 macro_rules! asset {

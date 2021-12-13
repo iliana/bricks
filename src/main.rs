@@ -169,6 +169,7 @@ fn rocket() -> _ {
                 routes::export::season_team_summary_csv,
                 routes::export::season_team_summary_json,
                 routes::game::game,
+                routes::glossary,
                 routes::index,
                 routes::jump,
                 routes::player::player,

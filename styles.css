@@ -68,4 +68,12 @@
       @apply float-right ml-1;
     }
   }
+
+  .glossary dd {
+    @apply font-bold mt-5 md:mt-6;
+
+    &::after {
+      content: ": ";
+    }
+  }
 }
