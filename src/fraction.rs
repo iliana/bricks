@@ -7,8 +7,8 @@ use std::ops::{Add, Div, Mul, Sub};
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(test, derive(PartialEq))]
 pub struct Fraction {
-    numer: i64,
-    denom: u64,
+    pub numer: i64,
+    pub denom: u64,
 }
 
 impl Fraction {
@@ -41,7 +41,7 @@ impl Fraction {
         self.numer == i64::MAX && self.denom == u64::MAX
     }
 
-    fn round(self) -> i64 {
+    pub fn round(self) -> i64 {
         assert!(self.denom != 0);
 
         let numer = self.numer.unsigned_abs();

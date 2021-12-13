@@ -27,6 +27,8 @@ sled = { version = "0.34", features = ["compression"] }
 twox-hash = "1"
 uuid = { version = "0.8", features = ["serde"] }
 zerocopy = "0.6"
+rand = "0.8.4"
+rand_distr = "0.4.2"
 
 [dev-dependencies]
 float-cmp = "0.9"

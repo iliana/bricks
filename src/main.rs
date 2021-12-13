@@ -10,6 +10,7 @@ mod names;
 mod percentage;
 mod pitching;
 mod routes;
+mod salmon;
 mod schedule;
 mod seasons;
 mod state;
@@ -36,12 +37,13 @@ const API_BASE: &str = "https://api.blaseball.com";
 const CHRONICLER_BASE: &str = "https://api.sibr.dev/chronicler";
 const CONFIGS_BASE: &str = "https://blaseball-configs.s3.us-west-2.amazonaws.com";
 const SACHET_BASE: &str = "https://api.sibr.dev/eventually/sachet";
+const WEBCRISP_BASE: &str = "https://crisp.sibr.dev/api";
 
 static REBUILDING: AtomicBool = AtomicBool::new(false);
 
 // Increment this if you need to force a rebuild.
 const DB_VERSION: &[u8] = &[13];
-const CLEAR_ON_REBUILD: &[&str] = &[summary::TREE, summary::SEASON_TREE];
+const CLEAR_ON_REBUILD: &[&str] = &[summary::TREE, summary::SEASON_TREE, salmon::SUMMARY_TREE];
 const OLD_TREES: &[&str] = &[];
 
 lazy_static::lazy_static! {
@@ -152,6 +154,10 @@ async fn update_task() -> Result<()> {
     Ok(())
 }
 
+async fn salmon_task() -> Result<()> {
+    salmon::process_players(chronicler::update_and_load_all("player").await?).await
+}
+
 #[launch]
 fn rocket() -> _ {
     dotenv::dotenv().ok();
@@ -180,10 +186,18 @@ fn rocket() -> _ {
                 routes::tablesort,
                 routes::tablesort_number,
                 routes::team::team,
+                routes::salmon::salmon_page,
             ],
         )
         .attach(AdHoc::on_liftoff("Background tasks", |_rocket| {
             Box::pin(async {
+                tokio::spawn(async {
+                    loop {
+                        log_err!(salmon_task().await);
+                        sleep(Duration::from_secs(60 * 30)).await;
+                    }
+                });
+
                 if std::env::var_os("DISABLE_TASKS").is_none() {
                     tokio::spawn(async {
                         log_err!(start_task().await);

@@ -2,6 +2,7 @@ pub mod debug;
 pub mod export;
 pub mod game;
 pub mod player;
+pub mod salmon;
 pub mod season;
 pub mod team;
 
