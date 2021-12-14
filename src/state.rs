@@ -19,7 +19,7 @@ pub struct State {
     last_runs_cmp: Ordering,
     half_inning_outs: u16,
     at_bat: Option<Uuid>,
-    last_fielded_out: Option<(u16, Uuid)>,
+    last_fielded_out: Option<Uuid>,
     rbi_credit: Option<Uuid>,
     save_situation: [Option<SaveSituation>; 2],
     // key: runner id, value: (pitcher to charge earned run, minimum base)
@@ -642,18 +642,14 @@ impl State {
     fn sac(&mut self, event: &GameEvent) -> Result<()> {
         ensure!(event.player_tags.len() == 1, "invalid player tag count");
         self.credit_run(event.player_tags[0])?;
-        let (last_event, batter) = self
+        let batter = self
             .last_fielded_out
             .as_ref()
             .copied()
             .context("sac advance without a prior fielded out")?;
         let risp = self.risp();
         let stats = self.offense_stats(batter);
-        match last_event {
-            7 => stats.sacrifice_flies += 1,
-            8 => stats.sacrifice_hits += 1,
-            _ => unreachable!(),
-        }
+        stats.sacrifices += 1;
         stats.runs_batted_in += 1;
         stats.at_bats -= 1;
         if risp {
@@ -720,10 +716,10 @@ impl State {
             }
         } else if event.description.contains("hit a flyout to") {
             self.record_pitcher_event(|s| &mut s.flyouts_pitched)?;
-            self.last_fielded_out = self.at_bat.map(|id| (event.ty, id));
+            self.last_fielded_out = self.at_bat;
         } else if event.description.contains("hit a ground out to") {
             self.record_pitcher_event(|s| &mut s.groundouts_pitched)?;
-            self.last_fielded_out = self.at_bat.map(|id| (event.ty, id));
+            self.last_fielded_out = self.at_bat;
         } else {
             unreachable!();
         }

@@ -252,14 +252,9 @@ fn batting_lines(team: &Team, names: &HashMap<Uuid, String>) -> Vec<Line> {
             data: build_line(&team.stats, names, |s| s.total_bases(), true),
         },
         Line {
-            title: "Sacrifice Hits",
-            abbr: "SH",
-            data: build_line(&team.stats, names, |s| s.sacrifice_hits, false),
-        },
-        Line {
-            title: "Sacrifice Flies",
-            abbr: "SF",
-            data: build_line(&team.stats, names, |s| s.sacrifice_flies, false),
+            title: "Sacrifices",
+            abbr: "SAC",
+            data: build_line(&team.stats, names, |s| s.sacrifices, false),
         },
         Line {
             title: "Double Plays Grounded Into",

@@ -18,28 +18,23 @@
 
   <dd id="ab">At Bats (AB)</dd>
   <dt>
-    A player’s total hits and outs (except sacrifice plays). This statistic does not include walks. See also
-    <a href="#ba">batting average</a> and <a href="#slg">slugging percentage</a>.
-  </dt>
-
-  <dd id="bb">Bases on Balls / Walks (BB)</dd>
-  <dt>
-    A <a href="#pa">plate appearance</a> that ends due to the pitcher pitching (usually) four balls and the batter
-    advancing to first base.
+    A player’s total hits and outs. This statistic does not include <a href="#bb">walks</a> or
+    <a href="#sac">sacrifices</a>. See also <a href="#ba">batting average</a> and
+    <a href="#slg">slugging percentage</a>.
   </dt>
 
   <dd id="ba">Batting Average</dd>
   <dt>
-    <a href="#h">Hits</a> divided by <a href="#pa">plate appearances</a>. A measure of how often a batter reaches base
-    due to their influence, as this statistic does not include walks or sacrifice plays (however, the nature of a batter
-    having “influence” on the immaterial plane is a subject for debate).
+    <a href="#h">Hits</a> divided by <a href="#ab">at bats</a>. A measure of how often a batter reaches base due to
+    their influence, as this statistic does not include <a href="#bb">walks</a> or
+    <a href="#sac">sacrifice plays</a> (however, the nature of a batter having “influence” on the immaterial plane is a
+    subject for debate).
   </dt>
 
   <dd id="babip">Batting Average on Balls In Play (BABIP)</dd>
   <dt>
-    A measure of how often a batter reaches base only on plays where the defense is involved. Home runs,
-    <a href="#so">strikeouts</a>, and <a href="#sac">sacrifice flies</a> are removed from the standard
-    <a href="#ba">batting average</a> calculation.
+    A measure of how often a batter reaches base only on plays where the defense is involved. Home runs and
+    <a href="#so">strikeouts</a> are removed from the standard <a href="#ba">batting average</a> calculation.
   </dt>
 
   <dd id="sb">Caught Stealing (CS)</dd>
@@ -52,7 +47,11 @@
   <dt>Number of plate appearances that end in the batter and another runner being put out in the same play.</dt>
 
   <dd id="fc">Fielder’s Choice (FC)</dd>
-  <dt>A play where the defense chooses to put a runner out at a further base rather than at first base.</dt>
+  <dt>
+    A play where the defense chooses to put a runner out at a further base rather than at first base. Because runners
+    that reach first on fielder’s choice are not improving the game situation for the offense, they are not awarded with
+    a <a href="#h">hit</a>.
+  </dt>
 
   <dd id="g">Games Played (G)</dd>
   <dt>
@@ -60,21 +59,21 @@
     both teams in the same game due to Feedback.)
   </dt>
 
-  <dd id="h">Hits (H)</dd>
+  <dd id="h">Hit (H)</dd>
   <dt>
-    A single, double (2B), triple (3B), or home run (HR). Runners reaching base on
+    A single (1B), double (2B), triple (3B), or home run (HR). Runners reaching base on
     <a href="#fc">fielder’s choice</a> are not credited with a hit, as they merely replaced a runner put out on a
     further base.
   </dt>
 
   <dd id="obp">On-base Percentage (OBP)</dd>
   <dt>
-    Times on base (<a href="#h">hits</a> plus <a href="#bb">walks</a>) divided by plate appearances (<a href="#ab"
-      >at bats</a
-    >
-    plus <a href="#bb">walks</a> plus <a href="#sac">sacrifice flies</a>). A measure of how often a batter reaches base
-    under any circumstances. Players that are walked more often will have a significantly higher on-base percentage than
-    <a href="#ba">batting average</a>.
+    Roughly, times on base divided by <a href="#pa">plate appearances</a>. The formula is
+    <span class="whitespace-nowrap"
+      >(<a href="#h">H</a>+<a href="#bb">BB</a>)/(<a href="#ab">AB</a>+<a href="#bb">BB</a>+<a href="#sac">SAC</a
+      >)</span
+    >. A measure of how often a batter reaches base. Players that are walked much more often will have a significantly
+    higher on-base percentage than <a href="#ba">batting average</a>.
   </dt>
 
   <dd id="ops">On-base Plus Slugging (OPS)</dd>
@@ -83,27 +82,23 @@
     overall offensive performance of a player. See also <a href="#opsplus">adjusted OPS</a>.
   </dt>
 
-  <dd id="pa">Plate Appearances (PA)</dd>
+  <dd id="pa">Plate Appearance (PA)</dd>
   <dt>
     A completed turn batting. Batters complete a turn when they are put out or become a runner. If a runner is caught
     stealing and ends the inning, the batter is not credited with a plate appearance.
   </dt>
 
-  <dd id="rbi">Runs Batted In (RBI)</dd>
+  <dd id="rbi">Run Batted In (RBI)</dd>
   <dt>Credited to a batter for a run scored due to the batter’s time at the plate (except for double plays).</dt>
 
-  <dd id="r">Runs Scored or Allowed (R)</dd>
+  <dd id="r">Run Scored or Allowed (R)</dd>
   <dt>
     A runner who crosses home plate is credited with a run. The pitcher that allowed this runner to reach base is
     charged with a run allowed. A team wins by scoring more runs than the opposing team.
   </dt>
 
-  <dd id="sac">Sacrifice Flies (SF) / Sacrifice Hits (SH)</dd>
-  <dt>
-    A play that results in the batter being put out at first in order to allow another runner to reach home plate. A
-    sacrifice fly differs in that runners must first touch their last base after a ball is caught for an out, then can
-    run for home plate.
-  </dt>
+  <dd id="sac">Sacrifice (SAC)</dd>
+  <dt>A play that results in the batter being put out at first in order to allow another runner to score.</dt>
 
   <dd id="slg">Slugging Percentage (SLG)</dd>
   <dt>
@@ -111,13 +106,13 @@
     hits (doubles, triples, and home runs).
   </dt>
 
-  <dd id="sb">Stolen Bases (SB)</dd>
+  <dd id="sb">Stolen Base (SB)</dd>
   <dt>
     A runner safely advancing to the next base without the ball being hit into play. See also
     <a href="#cs">caught stealing</a>.
   </dt>
 
-  <dd id="so">Strikeouts (SO)</dd>
+  <dd id="so">Strikeout (SO)</dd>
   <dt>
     A <a href="#pa">plate appearance</a> that ends due to the pitcher pitching (usually) three strikes and putting the
     batter out.
@@ -127,6 +122,13 @@
   <dt>
     The number of bases a player reaches on <a href="#h">hits</a>. Singles are 1 base, doubles are 2 bases, triples are
     3 bases, and home runs are (usually) 4 bases. See also <a href="#slg">slugging percentage</a>.
+  </dt>
+
+  <dd id="bb">Walk / Base on Balls (BB)</dd>
+  <dt>
+    A <a href="#pa">plate appearance</a> that ends due to the pitcher pitching (usually) four balls and the batter
+    advancing to first base. “Base on balls” is the formal term for the rule in baseball, but “walk” is preferred in
+    Blaseball.
   </dt>
 </dl>
 {% endblock %}

@@ -1,7 +1,7 @@
 use crate::game::Stats;
 use crate::table::{row, Table};
 
-pub const COLS: usize = 23;
+pub const COLS: usize = 22;
 
 pub fn table(iter: impl Iterator<Item = Stats>, league: Stats) -> Table<COLS> {
     let mut table = Table::new(
@@ -27,8 +27,7 @@ pub fn table(iter: impl Iterator<Item = Stats>, league: Stats) -> Table<COLS> {
             ("Batting Average on Balls In Play", "BABIP"),
             ("Total Bases", "TB"),
             ("Double Plays Grounded Into", "GIDP"),
-            ("Sacrifice Hits", "SH"),
-            ("Sacrifice Flies", "SF"),
+            ("Sacrifices", "SAC"),
         ],
         "text-right",
         "number",
@@ -64,7 +63,6 @@ pub fn build_row(stats: Stats, league: Stats) -> [String; COLS] {
         stats.batting_average_on_balls_in_play(),
         stats.total_bases(),
         stats.double_plays_grounded_into,
-        stats.sacrifice_hits,
-        stats.sacrifice_flies,
+        stats.sacrifices,
     ]
 }

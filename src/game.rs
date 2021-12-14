@@ -241,8 +241,7 @@ pub struct Stats {
     pub home_runs: u32,
     pub runs: u32,
     pub runs_batted_in: u32,
-    pub sacrifice_hits: u32,
-    pub sacrifice_flies: u32,
+    pub sacrifices: u32,
     pub stolen_bases: u32,
     pub caught_stealing: u32,
     pub strike_outs: u32,
@@ -297,7 +296,7 @@ impl Stats {
     pub fn on_base_percentage(&self) -> Pct<3> {
         Pct::new(
             self.hits() + self.walks,
-            self.at_bats + self.walks + self.sacrifice_flies,
+            self.at_bats + self.walks + self.sacrifices,
         )
     }
 
@@ -312,7 +311,7 @@ impl Stats {
     pub fn batting_average_on_balls_in_play(&self) -> Pct<3> {
         Pct::new(
             self.hits() - self.home_runs,
-            self.at_bats - self.strike_outs - self.home_runs + self.sacrifice_flies,
+            self.at_bats - self.strike_outs - self.home_runs + self.sacrifices,
         )
     }
 
