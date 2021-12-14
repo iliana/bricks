@@ -516,6 +516,7 @@ impl State {
             262 => {} // electricity zaps a strike away
             263 => {} // WINTER STORM WARNING
             264 => {} // snowflakes modify the field
+            265 => {} // player is Unfreezable
             _ => bail!("unexpected event type {}", event.ty),
         }
 
