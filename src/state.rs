@@ -2,10 +2,10 @@ use crate::feed::{ExtraData, GameEvent};
 use crate::game::{Game, Stats, Team};
 use crate::{seasons::Season, team};
 use anyhow::{bail, ensure, Context, Result};
-use indexmap::IndexMap;
+use itertools::Itertools;
 use serde::Serialize;
 use std::cmp::Ordering;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use uuid::Uuid;
 
 #[derive(Debug, Serialize)]
@@ -22,10 +22,9 @@ pub struct State {
     last_fielded_out: Option<Uuid>,
     rbi_credit: Option<Uuid>,
     save_situation: [Option<SaveSituation>; 2],
-    // key: runner id, value: (pitcher to charge earned run, minimum base)
-    on_base: IndexMap<Uuid, (Uuid, u16)>,
+    on_base: Vec<Runner>,
     #[serde(skip)]
-    on_base_start_of_play: IndexMap<Uuid, (Uuid, u16)>,
+    on_base_start_of_play: Vec<Runner>,
     #[serde(skip)]
     expected: (u16, u16),
     #[serde(skip)]
@@ -61,8 +60,8 @@ impl State {
             last_fielded_out: None,
             rbi_credit: None,
             save_situation: [None; 2],
-            on_base: IndexMap::new(),
-            on_base_start_of_play: IndexMap::new(),
+            on_base: Vec::new(),
+            on_base_start_of_play: Vec::new(),
             expected: (0, 0),
             mods: HashSet::new(),
         }
@@ -197,9 +196,9 @@ impl State {
                     team.player_names.insert(pitcher, name.to_owned());
                 }
                 let current_pitcher = self.pitcher();
-                for (_, (pitcher, _)) in self.on_base.iter_mut() {
-                    if *pitcher == Uuid::default() {
-                        *pitcher = current_pitcher;
+                for runner in &mut self.on_base {
+                    if runner.pitcher == Uuid::default() {
+                        runner.pitcher = current_pitcher;
                     }
                 }
             }
@@ -269,8 +268,7 @@ impl State {
                     self.record_runner_event(event.player_tags[0], |s| &mut s.caught_stealing)?;
                     self.half_inning_outs += 1;
                     self.record_pitcher_event(|s| &mut s.outs_recorded)?;
-                    self.on_base
-                        .shift_remove(&event.player_tags[0])
+                    self.remove_runner(event.player_tags[0])?
                         .context("runner caught stealing wasn't on base?")?;
                 } else {
                     self.record_runner_event(event.player_tags[0], |s| &mut s.stolen_bases)?;
@@ -525,41 +523,49 @@ impl State {
             self.rbi_credit = None;
 
             if self.half_inning_outs < 3 {
-                if let Some(base_runners) = &event.base_runners {
-                    if let Some(bases_occupied) = &event.bases_occupied {
-                        let mut known_runners = base_runners
+                for runner in &self.on_base {
+                    ensure!(
+                        runner.base < 3,
+                        "baserunner {} should have scored",
+                        runner.id
+                    );
+                }
+
+                if let (Some(base_runners), Some(bases_occupied)) =
+                    (&event.base_runners, &event.bases_occupied)
+                {
+                    let mut known = bases_occupied
+                        .iter()
+                        .copied()
+                        .zip(base_runners.iter().copied())
+                        .collect::<Vec<_>>();
+                    known.sort_unstable();
+                    known.reverse();
+                    for runner in &mut self.on_base {
+                        let index = known
                             .iter()
-                            .copied()
-                            .zip(bases_occupied.iter().copied())
-                            .collect::<HashMap<_, _>>();
-                        for (runner, (_, min)) in &mut self.on_base {
-                            ensure!(*min < 3, "baserunner {} should have scored", runner);
-                            let pos = known_runners.remove(runner).with_context(|| {
-                                format!("baserunner {} missing from event", runner)
-                            })?;
-                            ensure!(
-                                pos >= *min,
-                                "baserunner {} on base {} but should be on at least {}",
-                                runner,
-                                pos,
-                                min
-                            );
-                            *min = pos;
-                        }
+                            .position(|(_, id)| runner.id == *id)
+                            .context("baserunner {} missing from event")?;
+                        let (base, _) = known.remove(index);
                         ensure!(
-                            known_runners.is_empty(),
-                            "baserunners {:?} not known to us",
-                            known_runners
+                            base >= runner.base,
+                            "baserunner {} on base {} but should be on at least {}",
+                            runner.id,
+                            base,
+                            runner.base,
                         );
+                        runner.base = base;
                     }
+                    ensure!(known.is_empty(), "baserunners {:?} not known to us", known);
                 }
             }
 
             let crisp = self
                 .on_base
                 .iter()
-                .filter_map(|(id, (_, base))| {
-                    (*base > 0 && self.mods.contains(&(*id, "FROZEN"))).then(|| *id)
+                .filter_map(|runner| {
+                    (runner.base > 0 && self.mods.contains(&(runner.id, "FROZEN")))
+                        .then(|| runner.id)
                 })
                 .collect::<Vec<_>>();
             self.offense_mut().crisp.extend(crisp);
@@ -616,8 +622,24 @@ impl State {
 
     fn risp(&self) -> bool {
         self.on_base_start_of_play
-            .values()
-            .any(|(_, min)| *min >= 1)
+            .iter()
+            .any(|runner| runner.base >= 1)
+    }
+
+    fn remove_runner(&mut self, id: Uuid) -> Result<Option<Runner>> {
+        match self
+            .on_base
+            .iter()
+            .enumerate()
+            .filter(|(_, runner)| runner.id == id)
+            .at_most_one()
+        {
+            Ok(Some((index, _))) => Ok(Some(self.on_base.remove(index))),
+            Ok(None) => Ok(None),
+            Err(_) => {
+                bail!("can't determine which {} to remove from bases", id)
+            }
+        }
     }
 
     fn next_half_inning(&mut self) -> Result<()> {
@@ -671,11 +693,15 @@ impl State {
                 .find(|(_, name)| name == &out)
                 .with_context(|| format!("could not determine id for baserunner {}", out))?
                 .0;
-            let (pitcher, _) = self
-                .on_base
-                .shift_remove(&out)
-                .context("baserunner out in fielder's choice not on base")?;
-            self.on_base.insert(self.batter()?, (pitcher, 0));
+            let pitcher = self
+                .remove_runner(out)?
+                .context("baserunner out in fielder's choice not on base")?
+                .pitcher;
+            self.on_base.push(Runner {
+                id: self.batter()?,
+                pitcher,
+                base: 0,
+            });
             self.fix_minimum_base();
         } else if event.description.ends_with("hit into a double play!") {
             // double play
@@ -693,26 +719,25 @@ impl State {
                 // clear the baserunner list
                 self.offense_stats(self.batter()?).left_on_base += self.on_base.len();
                 self.offense_mut().left_on_base += self.on_base.len();
-                self.on_base.pop();
+                self.on_base.clear();
             } else {
-                // uh-oh. see the thing here is, the Feed doesn't tell us who the other
-                // out was on, and we have multiple runners on. we'll need to rely on
-                // the baseRunners object merged in from sachet.
+                // uh-oh. we have multiple runners on, but the Feed doesn't tell us which one is
+                // out. we'll need to rely on the baseRunners object merged in from sachet.
                 let base_runners = event
                     .base_runners
                     .as_ref()
                     .context("unable to determine runner out in double play")?;
                 let out = self
                     .on_base
-                    .keys()
+                    .iter()
                     // if more than one batter is removed, it's a scoring play; the other half of
                     // the double play will be on an earlier base and thus will have been added to
                     // this map _later_. reverse the iterator to find the latest one.
                     .rev()
-                    .find(|runner| !base_runners.contains(runner))
-                    .copied()
+                    .find(|runner| !base_runners.contains(&runner.id))
+                    .map(|runner| runner.id)
                     .context("unable to determine runner out in double play")?;
-                self.on_base.shift_remove(&out);
+                self.remove_runner(out)?;
                 self.offense_stats(self.batter()?).left_on_base += 1;
             }
         } else if event.description.contains("hit a flyout to") {
@@ -744,11 +769,15 @@ impl State {
     }
 
     fn credit_run(&mut self, runner: Uuid) -> Result<()> {
-        let pitcher = self
+        // instead of calling `remove_runner` here, we can assume the first runner in the list is
+        // the one that scored
+        let index = self
             .on_base
-            .shift_remove(&runner)
-            .context("cannot determine pitcher to charge with earned run")?
-            .0;
+            .iter()
+            .position(|r| r.id == runner)
+            .context("cannot determine pitcher to charge with earned run")?;
+        let pitcher = self.on_base.remove(index).pitcher;
+
         let inning = self.inning;
         *self.offense_mut().inning_runs.entry(inning).or_default() += 1;
         self.record_runner_event(runner, |s| &mut s.runs)?;
@@ -777,7 +806,11 @@ impl State {
 
     fn walk(&mut self, event: &GameEvent) -> Result<bool> {
         if event.description.ends_with("draws a walk.") {
-            self.on_base.insert(self.batter()?, (self.pitcher(), 0));
+            self.on_base.push(Runner {
+                id: self.batter()?,
+                pitcher: self.pitcher(),
+                base: 0,
+            });
             self.fix_minimum_base();
             self.record_batter_event(|s| &mut s.plate_appearances)?;
             self.record_batter_event(|s| &mut s.walks)?;
@@ -802,8 +835,8 @@ impl State {
         }
 
         let was_on_base = self.on_base.clone();
-        for (runner, _) in was_on_base {
-            self.credit_run(runner)?;
+        for runner in was_on_base {
+            self.credit_run(runner.id)?;
         }
         self.on_base.clear();
 
@@ -811,29 +844,33 @@ impl State {
     }
 
     fn fix_minimum_base(&mut self) {
-        let mut iter = self.on_base.values_mut().rev().map(|(_, base)| base);
+        let mut iter = self.on_base.iter_mut().rev();
         let mut last = match iter.next() {
-            Some(last) => *last,
+            Some(runner) => runner.base,
             None => return,
         };
-        for base in iter {
-            if *base <= last {
+        for runner in iter {
+            if runner.base <= last {
                 // due to the fact that the minimum base is only used to determine RISP, and
                 // because of the 🤝 glitch, we treat only first base as exclusive
                 if last == 0 {
-                    *base = 1;
+                    runner.base = 1;
                 } else {
-                    *base = last;
+                    runner.base = last;
                 }
             }
-            last = *base;
+            last = runner.base;
         }
     }
 
     fn hit(&mut self, event: &GameEvent) -> Result<bool> {
         macro_rules! common {
             ($base:expr) => {{
-                self.on_base.insert(self.batter()?, (self.pitcher(), $base));
+                self.on_base.push(Runner {
+                    id: self.batter()?,
+                    pitcher: self.pitcher(),
+                    base: $base,
+                });
                 self.fix_minimum_base();
                 self.record_batter_event(|s| &mut s.plate_appearances)?;
                 self.record_batter_event(|s| &mut s.at_bats)?;
@@ -955,4 +992,13 @@ impl State {
 enum SaveSituation {
     TyingRun,
     LeadThreeOrLess,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct Runner {
+    id: Uuid,
+    /// pitcher to charge with earned run if this runner scores
+    pitcher: Uuid,
+    /// minimum base this runner is on
+    base: u16,
 }
