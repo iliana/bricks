@@ -6,6 +6,13 @@
 <h1>Glossary</h1>
 
 <dl class="glossary">
+  <dd id="eraplus">Adjusted ERA (ERA+)</dd>
+  <dt>
+    <a href="#era">Earned run average</a> normalized such that the league average pitcher has an ERA+ of 100. The
+    formula is <span class="whitespace-nowrap">100&times;(lgERA/<a href="#era">ERA</a>)</span>, where lgERA is the
+    league average for the season.
+  </dt>
+
   <dd id="opsplus">Adjusted OPS (OPS+)</dd>
   <dt>
     <a href="#ops">On-base plus slugging</a> normalized such that the league average batter has an OPS+ of 100. The
@@ -22,6 +29,9 @@
     <a href="#sac">sacrifices</a>. See also <a href="#ba">batting average</a> and
     <a href="#slg">slugging percentage</a>.
   </dt>
+
+  <dd id="bf">Batters Faced (BF)</dd>
+  <dt>Number of <a href="#pa">plate appearances</a> completed while the player was the pitcher.</dt>
 
   <dd id="ba">Batting Average</dd>
   <dt>
@@ -43,8 +53,24 @@
     See also <a href="#sb">stolen bases</a>.
   </dt>
 
+  <dd id="cg">Complete Game (CG)</dd>
+  <dt>
+    Earned by a pitcher if they are the only pitcher for their team for a full game, including extra innings if played.
+    A pitcher must pitch a complete game to be awarded a <a href="#sho">shutout</a>, <a href="#no">no-hitter</a>, or
+    <a href="#pg">perfect game</a>.
+  </dt>
+
   <dd id="gidp">Double Plays Grounded Into (GIDP)</dd>
   <dt>Number of plate appearances that end in the batter and another runner being put out in the same play.</dt>
+
+  <dd id="era">Earned Run Average (ERA)</dd>
+  <dt>
+    The average number of <a href="#r">runs</a> given up by a pitcher in a game. The forumla is
+    <span class="whitespace-nowrap">9&times;<a href="#r">R</a>/<a href="#ip">IP</a></span
+    >. Commonly used to measure the success of a pitcher. The name “earned run” is a holdover from baseball, where
+    pitchers can be charged with an unearned run due to a fielding error; in Blaseball, players do not err, despite
+    fans’ feelings on the matter. See also <a href="#eraplus">adjusted ERA</a>.
+  </dt>
 
   <dd id="fc">Fielder’s Choice (FC)</dd>
   <dt>
@@ -66,6 +92,30 @@
     further base.
   </dt>
 
+  <dd id="ip">Innings Pitched (IP)</dd>
+  <dt>
+    Outs recorded while pitching in a game divided by 3. Used in pitching averages such as
+    <a href="#era">earned run average</a>. The divisor is always 3 regardless of the number of outs required to end an
+    inning. The displayed form is fractional, not decimal; 7.2 innings pitched is equivalent to 7&nbsp;⅔ innings
+    pitched, or 23 outs recorded. The source of this typographical convention is unclear, but
+    <a href="https://ask.metafilter.com/64927/Baseball-statistics-question#976742">one source indicates</a> including
+    the denominator would make the value more difficult to read in smaller text, and would certainly be redundant if the
+    denominator is always 3.
+  </dt>
+
+  <dd id="lob">Left on Base (LOB)</dd>
+  <dt>
+    For a player, number of runners who were on base when a batter was put out; for a team, number of runners who were
+    on base when the inning ended (alternately, “stranded”). The objective of a batter is to get runners on base to
+    score; batters with a high LOB regularly fail this objective.
+  </dt>
+
+  <dd id="no">No-hitter</dd>
+  <dt>
+    A <a href="#cg">complete game</a> pitched with no <a href="#h">hits allowed</a>. Separated from a
+    <a href="#pg">perfect game</a> only by <a href="#bb">walking</a> a batter.
+  </dt>
+
   <dd id="obp">On-base Percentage (OBP)</dd>
   <dt>
     Roughly, times on base divided by <a href="#pa">plate appearances</a>. The formula is
@@ -82,10 +132,23 @@
     overall offensive performance of a player. See also <a href="#opsplus">adjusted OPS</a>.
   </dt>
 
+  <dd id="pg">Perfect Game</dd>
+  <dt>
+    A <a href="#cg">complete game</a> pitched with every batter faced being put out before reaching base; or, no
+    <a href="#h">hits</a> allowed or batters <a href="#bb">walked</a>. Necessarily, also a <a href="#no">no-hitter</a>,
+    but because Blaseball is Blaseball, sometimes not a <a href="#sho">shutout</a> or even a <a href="#w">win</a>.
+  </dt>
+
   <dd id="pa">Plate Appearance (PA)</dd>
   <dt>
     A completed turn batting. Batters complete a turn when they are put out or become a runner. If a runner is caught
     stealing and ends the inning, the batter is not credited with a plate appearance.
+  </dt>
+
+  <dd id="risp">Runners in Scoring Position (RISP)</dd>
+  <dt>
+    Refers to a runner on second or third base (in usual four-base gameplay). “Team RISP” is a team’s measure of
+    <a href="#h">hits</a> per <a href="#ab">at bat</a> while a runner is on second or third.
   </dt>
 
   <dd id="rbi">Run Batted In (RBI)</dd>
@@ -94,11 +157,27 @@
   <dd id="r">Run Scored or Allowed (R)</dd>
   <dt>
     A runner who crosses home plate is credited with a run. The pitcher that allowed this runner to reach base is
-    charged with a run allowed. A team wins by scoring more runs than the opposing team.
+    charged with a run allowed. A team wins by scoring more runs than the opposing team. See also
+    <a href="#era">earned run average</a>.
   </dt>
 
   <dd id="sac">Sacrifice (SAC)</dd>
   <dt>A play that results in the batter being put out at first in order to allow another runner to score.</dt>
+
+  <dd id="sv">Save (SV)</dd>
+  <dt>
+    Awarded to the finishing pitcher of the winning team who did not earn the <a href="#w">win</a>, pitched at least
+    <a href="#ip">one-third inning</a>, and satisfies one of the following conditions:
+    <ol class="list-decimal list-inside">
+      <li>Entered the game when the lead is less than three runs, and pitched at least one inning.</li>
+      <li>Entered the game with the potential tying run either already on base, or one of the next two batters.</li>
+      <li>Pitched for at least three innings.</li>
+    </ol>
+    The intent is to recognize pitchers that enter a close game and retain the lead.
+  </dt>
+
+  <dd id="sho">Shutout (SHO)</dd>
+  <dt>A <a href="#cg">complete game</a> pitched with no <a href="#r">runs allowed</a>.</dt>
 
   <dd id="slg">Slugging Percentage (SLG)</dd>
   <dt>
@@ -129,6 +208,21 @@
     A <a href="#pa">plate appearance</a> that ends due to the pitcher pitching (usually) four balls and the batter
     advancing to first base. “Base on balls” is the formal term for the rule in baseball, but “walk” is preferred in
     Blaseball.
+  </dt>
+
+  <dd id="whip">Walks and Hits Per Inning Pitched (WHIP)</dd>
+  <dt>
+    The name of the statistic explains the statistic. The formula is
+    <span class="whitespace-nowrap">(<a href="#bb">BB</a>+<a href="#h">H</a>)/<a href="#ip">IP</a></span
+    >. While <a href="#era">earned run average</a> measures a pitcher’s ability to prevent runs, WHIP measures a
+    pitcher’s ability to prevent baserunners.
+  </dt>
+
+  <dd id="w">Win (W) / Loss (L)</dd>
+  <dt>
+    Earned by a pitcher if they are the most recent pitcher for their team when their team takes or loses the lead for
+    good. A starting pitcher must pitch at least 5 innings to earn the win; if they don’t, the win is awarded to the
+    relief pitcher who pitched the most innings. See also <a href="#sv">save</a>.
   </dt>
 </dl>
 {% endblock %}
