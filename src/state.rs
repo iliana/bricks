@@ -179,26 +179,38 @@ impl State {
             ensure!(self.game_finished || event.ty == 11, "game over mismatch");
         }
 
-        if *self.game.away.pitchers.first().unwrap() == Uuid::default() {
-            if let Some(pitchers) = &event.pitcher_data {
+        for (team, pitcher, pitcher_name, is_defense) in [
+            (
+                &mut self.game.away,
+                &event.away_pitcher,
+                &event.away_pitcher_name,
+                !self.top_of_inning,
+            ),
+            (
+                &mut self.game.home,
+                &event.home_pitcher,
+                &event.home_pitcher_name,
+                self.top_of_inning,
+            ),
+        ] {
+            if team.pitchers.first().unwrap() == &Uuid::default() {
                 ensure!(
-                    self.game.teams().all(|team| team.pitchers.len() == 1),
+                    team.pitchers.len() == 1 && team.pitcher_of_record == Uuid::default(),
                     "roster change occurred while pitchers were unknown"
                 );
-                for (team, (pitcher, name)) in self.game.teams_mut().zip([
-                    (pitchers.away_pitcher, &pitchers.away_pitcher_name),
-                    (pitchers.home_pitcher, &pitchers.home_pitcher_name),
-                ]) {
-                    *team.pitchers.get_mut(0).unwrap() = pitcher;
+                if let (Some(pitcher), Some(pitcher_name)) = (pitcher, pitcher_name) {
+                    *team.pitchers.get_mut(0).unwrap() = *pitcher;
+                    team.pitcher_of_record = *pitcher;
                     if let Some(stats) = team.stats.remove(&Uuid::default()) {
-                        team.stats.insert(pitcher, stats);
+                        team.stats.insert(*pitcher, stats);
                     }
-                    team.player_names.insert(pitcher, name.to_owned());
-                }
-                let current_pitcher = self.pitcher();
-                for runner in &mut self.on_base {
-                    if runner.pitcher == Uuid::default() {
-                        runner.pitcher = current_pitcher;
+                    team.player_names.insert(*pitcher, pitcher_name.to_owned());
+                    if is_defense {
+                        for runner in &mut self.on_base {
+                            if runner.pitcher == Uuid::default() {
+                                runner.pitcher = *pitcher;
+                            }
+                        }
                     }
                 }
             }
@@ -217,9 +229,22 @@ impl State {
             2 => self.next_half_inning()?,
             3 => {
                 // Pitcher change
-                self.ensure_pitchers_known()?;
-                if let Some((name, _)) = desc.rsplit_once(" is now pitching for the ") {
+                if [
+                    0xf69ea0c42e114a0abeb8631a639eb6fd,
+                    0xd22f5032bc7d4825b2494126a259fa3c,
+                    0x4cebce3a917d45da8733d97fe529e0e0,
+                    0xfc41a23a14c94b4380ff4bb3883aaf1b,
+                ]
+                .contains(&event.id.as_u128())
+                {
+                    // Gamma 3, Season 1, Day 167 had an issue where the starting pitchers, game
+                    // odds, etc were not set prior to game start. This resulted in a pitcher
+                    // change event at the beginning of the game. We handled setting the pitcher
+                    // correctly above, so just ignore this event.
+                } else if let Some((name, _)) = desc.rsplit_once(" is now pitching for the ") {
                     ensure!(event.player_tags.len() == 1, "invalid player tag count");
+
+                    self.ensure_pitchers_known()?;
 
                     // starting pitchers must pitch 5 innings to be credited for the win. clear the
                     // pitcher of record if they are not eligible to record the win; if the losing

@@ -69,8 +69,10 @@ pub struct GameEvent {
     pub base_runners: Option<Vec<Uuid>>,
     pub bases_occupied: Option<Vec<u16>>,
 
-    #[serde(flatten)]
-    pub pitcher_data: Option<PitcherData>,
+    pub away_pitcher: Option<Uuid>,
+    pub away_pitcher_name: Option<String>,
+    pub home_pitcher: Option<Uuid>,
+    pub home_pitcher_name: Option<String>,
 }
 
 impl GameEvent {
@@ -106,15 +108,6 @@ pub struct GameEventMetadata {
 
     #[serde(flatten)]
     pub extra: Option<ExtraData>,
-}
-
-#[derive(Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
-#[serde(rename_all = "camelCase")]
-pub struct PitcherData {
-    pub away_pitcher: Uuid,
-    pub away_pitcher_name: String,
-    pub home_pitcher: Uuid,
-    pub home_pitcher_name: String,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
