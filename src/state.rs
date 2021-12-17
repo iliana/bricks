@@ -501,6 +501,13 @@ impl State {
                 if event.ty == 215 {
                     self.game.is_postseason = true;
                 }
+                // workaround for gamma9 postseason feed issue
+                if self.game.season.sim == "gamma9"
+                    && self.game.season.season == 0
+                    && self.game.day >= 166
+                {
+                    self.game.is_postseason = true;
+                }
             }
             216 => {} // game over
             223 => {} // weather is happening
