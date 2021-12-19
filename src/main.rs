@@ -160,6 +160,7 @@ fn rocket() -> _ {
         .mount(
             "/",
             routes![
+                routes::attribution,
                 routes::brick,
                 routes::css,
                 routes::debug::debug,

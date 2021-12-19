@@ -23,6 +23,15 @@ pub fn index() -> ResponseResult<Option<Redirect>> {
         .map(|season| Redirect::to(season.uri(&true, &true))))
 }
 
+#[get("/attribution")]
+pub fn attribution() -> ResponseResult<Html<String>> {
+    #[derive(Template)]
+    #[template(path = "attribution.html")]
+    struct Attribution;
+
+    Ok(Html(Attribution.render().map_err(anyhow::Error::from)?))
+}
+
 #[get("/glossary")]
 pub fn glossary() -> ResponseResult<Html<String>> {
     #[derive(Template)]
