@@ -1,5 +1,5 @@
 use crate::game::Stats;
-use crate::table::{row, Table};
+use crate::table::{row, Table, Value};
 
 pub const COLS: usize = 22;
 
@@ -40,7 +40,7 @@ pub fn table(iter: impl Iterator<Item = Stats>, league: Stats) -> Table<COLS> {
     table
 }
 
-pub fn build_row(stats: Stats, league: Stats) -> [String; COLS] {
+pub fn build_row(stats: Stats, league: Stats) -> [Value; COLS] {
     row![
         stats.games_batted,
         stats.plate_appearances,

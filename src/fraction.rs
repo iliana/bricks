@@ -1,5 +1,5 @@
-/// lol
 use gcd::Gcd;
+use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::fmt::{self, Display};
 use std::ops::{Add, Div, Mul, Sub};
@@ -35,6 +35,21 @@ impl Fraction {
 
     pub fn to_f64(self) -> f64 {
         self.numer as f64 / self.denom as f64
+    }
+
+    pub fn to_js_number(self) -> Cow<'static, str> {
+        if self.is_overflow() {
+            "NaN".into()
+        } else if self.denom == 0 {
+            match self.numer.cmp(&0) {
+                Ordering::Equal => "NaN",
+                Ordering::Less => "-Infinity",
+                Ordering::Greater => "Infinity",
+            }
+            .into()
+        } else {
+            self.to_f64().to_string().into()
+        }
     }
 
     fn is_overflow(self) -> bool {

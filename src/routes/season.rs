@@ -67,7 +67,7 @@ macro_rules! load {
             "none",
         );
         for row in $summary.iter().filter($filter) {
-            ident_table.push([row.name.clone(), row.team_abbr.clone()]);
+            ident_table.push([row.name.clone().into(), row.team_abbr.clone().into()]);
             ident_table.set_href(0, uri!(player(id = row.id)));
             ident_table.set_href(
                 1,
@@ -84,7 +84,7 @@ macro_rules! load {
     (@inner season_team_summary, $summary:expr, $table:expr, $season:expr, $filter:expr) => {{
         let mut ident_table = Table::new([("Team", "")], "text-left", "none");
         for row in $summary.iter().filter($filter) {
-            ident_table.push([row.name.clone()]);
+            ident_table.push([row.name.clone().into()]);
             ident_table.set_href(
                 0,
                 uri!(team(

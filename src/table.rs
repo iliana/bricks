@@ -1,3 +1,6 @@
+use crate::percentage::Pct;
+use derive_more::{Display, From};
+use std::borrow::Cow;
 use std::ops::{Deref, DerefMut};
 
 #[macro_export]
@@ -5,7 +8,7 @@ macro_rules! row {
     ($($value:expr),* $(,)?) => {
         [
             $(
-                $value.to_string()
+                $crate::table::Value::from($value)
             ),*
         ]
     };
@@ -26,6 +29,7 @@ pub struct Table<const N: usize> {
 
 impl<const N: usize> Table<N>
 where
+    [Value; N]: Default,
     [String; N]: Default,
 {
     pub fn new(
@@ -49,7 +53,7 @@ where
         }
     }
 
-    pub fn push(&mut self, data: [String; N]) {
+    pub fn push(&mut self, data: [Value; N]) {
         self.rows.push(Row {
             data,
             ..Default::default()
@@ -58,6 +62,7 @@ where
 
     pub fn insert<const M: usize, const Z: usize>(self, index: usize, other: Table<M>) -> Table<Z>
     where
+        [Value; Z]: Default,
         [String; Z]: Default,
         [&'static str; Z]: Default,
     {
@@ -109,17 +114,19 @@ impl<const N: usize> Table<N> {
 
 #[derive(Debug)]
 pub struct Row<const N: usize> {
-    pub data: [String; N],
+    pub data: [Value; N],
     pub href: [String; N],
     pub class: &'static str,
 }
 
 impl<const N: usize> Row<N>
 where
+    [Value; N]: Default,
     [String; N]: Default,
 {
     fn insert<const M: usize, const Z: usize>(self, index: usize, other: Row<M>) -> Row<Z>
     where
+        [Value; Z]: Default,
         [String; Z]: Default,
     {
         Row {
@@ -132,6 +139,7 @@ where
 
 impl<const N: usize> Default for Row<N>
 where
+    [Value; N]: Default,
     [String; N]: Default,
 {
     fn default() -> Row<N> {
@@ -143,10 +151,47 @@ where
     }
 }
 
+#[derive(Debug, From, Display)]
+pub enum Value {
+    Pct0(Pct<0>),
+    Pct1(Pct<1>),
+    Pct2(Pct<2>),
+    Pct3(Pct<3>),
+    Str(String),
+    U32(u32),
+    Usize(usize),
+}
+
+impl Value {
+    pub fn sort_value(&self) -> Cow<'_, str> {
+        match self {
+            Value::Pct0(Pct(frac))
+            | Value::Pct1(Pct(frac))
+            | Value::Pct2(Pct(frac))
+            | Value::Pct3(Pct(frac)) => frac.to_js_number(),
+            Value::Str(s) => s.into(),
+            Value::U32(x) => x.to_string().into(),
+            Value::Usize(x) => x.to_string().into(),
+        }
+    }
+}
+
+impl Default for Value {
+    fn default() -> Value {
+        Value::Str(String::default())
+    }
+}
+
+impl From<&str> for Value {
+    fn from(s: &str) -> Value {
+        Value::Str(s.to_string())
+    }
+}
+
 #[derive(Debug)]
 pub struct TotalsTable<const N: usize, const S: usize> {
     pub table: Table<N>,
-    pub totals: [String; S],
+    pub totals: [Value; S],
 }
 
 impl<const N: usize, const S: usize> Deref for TotalsTable<N, S> {

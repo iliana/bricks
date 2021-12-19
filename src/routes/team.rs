@@ -50,7 +50,7 @@ fn load_team(id: Uuid, season: Season) -> Result<Option<TeamPage>> {
             let mut ident_table = Table::new([("Player", "")], "text-left", "none");
             for row in summary.iter().filter($filter) {
                 let player = names::player_name(row.player_id)?.unwrap_or_default();
-                ident_table.push([player]);
+                ident_table.push([player.into()]);
                 ident_table.set_href(0, uri!(player(id = row.player_id)));
             }
             let stats_table =

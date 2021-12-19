@@ -93,23 +93,21 @@ struct GameFailedPage {
 // =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=
 
 fn batters_table(team: &Team, names: &HashMap<Uuid, String>) -> Table<8> {
-    let mut table = Table {
-        header: row![
-            format!("Batters \u{2013} {}", team.name.shorthand),
-            "At Bats",
-            "Runs Scored",
-            "Hits",
-            "Runs Batted In",
-            "Bases on Balls (Walks)",
-            "Strikeouts",
-            "Left on Base",
+    let mut table = Table::new(
+        [
+            ("", ""),
+            ("At Bats", "AB"),
+            ("Runs Scored", "R"),
+            ("Hits", "H"),
+            ("Runs Batted In", "RBI"),
+            ("Bases on Balls (Walks)", "BB"),
+            ("Strikeouts", "SO"),
+            ("Left on Base", "LOB"),
         ],
-        abbr: row!["", "AB", "R", "H", "RBI", "BB", "SO", "LOB"],
-        skip: Vec::new(),
-        col_class: ["w-6 xl:w-8 text-right"; 8],
-        sort_method: ["none"; 8],
-        rows: Vec::new(),
-    };
+        "w-6 xl:w-8 text-right",
+        "none",
+    );
+    table.header[0] = format!("Batters \u{2013} {}", team.name.shorthand);
     table.col_class[0] = "text-left";
 
     let mut seen = HashSet::new();
@@ -153,22 +151,20 @@ fn batters_table(team: &Team, names: &HashMap<Uuid, String>) -> Table<8> {
 }
 
 fn pitchers_table(team: &Team, names: &HashMap<Uuid, String>) -> Table<7> {
-    let mut table = Table {
-        header: row![
-            format!("Pitchers \u{2013} {}", team.name.shorthand),
-            "Innings Pitched",
-            "Hits Allowed",
-            "Runs Allowed",
-            "Bases on Balls (Walks)",
-            "Strikeouts",
-            "Home Runs Allowed",
+    let mut table = Table::new(
+        [
+            ("", ""),
+            ("Innings Pitched", "IP"),
+            ("Hits Allowed", "H"),
+            ("Runs Allowed", "R"),
+            ("Bases on Balls (Walks)", "BB"),
+            ("Strikeouts", "SO"),
+            ("Home Runs Allowed", "HR"),
         ],
-        abbr: row!["", "IP", "H", "R", "BB", "SO", "HR"],
-        skip: Vec::new(),
-        col_class: ["w-6 xl:w-8 text-right"; 7],
-        sort_method: ["none"; 7],
-        rows: Vec::new(),
-    };
+        "w-6 xl:w-8 text-right",
+        "none",
+    );
+    table.header[0] = format!("Pitchers \u{2013} {}", team.name.shorthand);
     table.col_class[0] = "text-left";
 
     for pitcher in &team.pitchers {

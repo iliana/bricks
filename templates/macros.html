@@ -44,7 +44,10 @@ px-2
   <!-- prettier-ignore -->
   {% for value in row.data %}
   {% if table.not_skip(loop.index0) %}
-  <td class="{% call cellspacing() %} {{ table.col_class[loop.index0] }} {% if loop.first %}{{ row.class }}{% endif %}">
+  <td
+    class="{% call cellspacing() %} {{ table.col_class[loop.index0] }} {% if loop.first %}{{ row.class }}{% endif %}"
+    data-sort="{{ value.sort_value() }}"
+  >
     <!-- prettier-ignore -->
     {% let href = row.href[loop.index0] %}
     {% if !href.is_empty() %}
@@ -87,7 +90,10 @@ px-2
         <!-- prettier-ignore -->
         {% for i in 0..table.header.len() %}
         {% if i >= label_width && table.not_skip(i) %}
-        <td class="{% call cellspacing() %} {{ table.col_class[loop.index0] }}">{{ table.totals[i - label_width] }}</td>
+        {% let value = table.totals[i - label_width] %}
+        <td class="{% call cellspacing() %} {{ table.col_class[loop.index0] }}" data-sort="{{ value.sort_value() }}">
+          {{ value }}
+        </td>
         {% endif %}
         <!-- prettier-ignore -->
         {% endfor %}
