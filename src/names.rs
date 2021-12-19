@@ -35,13 +35,22 @@ pub struct TeamName {
 impl TeamName {
     pub fn emoji_hash(&self) -> u64 {
         let mut hasher = twox_hash::XxHash64::default();
-        if self.name == "Ohio Peanuts" && self.emoji == "\u{1f95c}\u{fe0f}" {
-            "\u{1f40c}\u{fe0f}"
+        if self.name == "Ohio Peanuts" && self.emoji == "\u{1f95c}" {
+            "\u{1f40c}"
         } else {
             &self.emoji
         }
         .hash(&mut hasher);
         hasher.finish()
+    }
+
+    #[allow(unstable_name_collisions)]
+    pub fn twemoji(&self) -> String {
+        self.emoji
+            .chars()
+            .map(|c| format!("{:x}", u32::from(c)))
+            .intersperse("-".into())
+            .collect()
     }
 
     pub fn all_seasons(&self) -> Result<Vec<(Season, Uuid)>> {

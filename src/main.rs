@@ -21,11 +21,13 @@ use crate::seasons::Season;
 use anyhow::Result;
 use reqwest::Client;
 use rocket::fairing::AdHoc;
+use rocket::fs::FileServer;
 use rocket::http::ContentType;
 use rocket::tokio::time::sleep;
 use rocket::{launch, routes, tokio};
 use serde::Deserialize;
 use sled::Db;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 use uuid::Uuid;
@@ -40,7 +42,7 @@ const SACHET_BASE: &str = "https://api.sibr.dev/eventually/sachet";
 static REBUILDING: AtomicBool = AtomicBool::new(false);
 
 // Increment this if you need to force a rebuild.
-const DB_VERSION: &[u8] = &[19];
+const DB_VERSION: &[u8] = &[20];
 const CLEAR_ON_REBUILD: &[&str] = &[summary::TREE, summary::SEASON_TREE];
 const OLD_TREES: &[&str] = &[];
 
@@ -156,6 +158,14 @@ async fn update_task() -> Result<()> {
 fn rocket() -> _ {
     dotenv::dotenv().ok();
 
+    let twemoji = match std::env::var_os("TWEMOJI_SVG") {
+        Some(path) => PathBuf::from(path),
+        None => Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("twemoji")
+            .join("assets")
+            .join("svg"),
+    };
+
     rocket::build()
         .mount(
             "/",
@@ -183,6 +193,7 @@ fn rocket() -> _ {
                 routes::team::team,
             ],
         )
+        .mount("/twemoji", FileServer::from(twemoji))
         .attach(AdHoc::on_liftoff("Background tasks", |_rocket| {
             Box::pin(async {
                 if std::env::var_os("DISABLE_TASKS").is_none() {

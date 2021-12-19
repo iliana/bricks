@@ -6,6 +6,9 @@ COPY . .
 RUN --mount=type=cache,target=/root/.npm \
   npm ci && npx postcss --env production styles.css -o styles.min.css
 
+FROM rust:1.57-buster as twemoji
+RUN svn export https://github.com/twitter/twemoji/tags/v13.1.0/assets/svg twemoji
+
 FROM rust:1.57-buster as builder
 COPY --from=golang:1.17-buster /usr/local/go /usr/local/go
 ENV PATH /usr/local/go/bin:$PATH
@@ -21,5 +24,8 @@ RUN objcopy --compress-debug-sections /usr/local/cargo/bin/bricks
 
 FROM debian:buster-slim
 RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /usr/local/cargo/bin/bricks /usr/local/bin/bricks
-CMD ["bricks"]
+COPY --from=builder /usr/local/cargo/bin/bricks /bricks
+COPY --from=twemoji /twemoji /twemoji
+ENV ROCKET_ADDRESS=0.0.0.0 \
+    TWEMOJI_SVG=/twemoji
+CMD ["/bricks"]

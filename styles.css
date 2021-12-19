@@ -28,6 +28,13 @@
     @apply underline;
   }
 
+  img.twemoji {
+    @apply inline;
+    height: 1em;
+    width: 1em;
+    vertical-align: -0.1em;
+  }
+
   .icon svg {
     @apply inline h-5 w-5 md:h-6 md:w-6;
     vertical-align: -0.375em;

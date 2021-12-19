@@ -1,3 +1,7 @@
+{% macro twemoji(team) %}
+<img class="twemoji" alt="{{ team.emoji }}" src="/twemoji/{{ team.twemoji() }}.svg" draggable="false" />
+{% endmacro %}
+
 <!-- prettier-ignore -->
 {% macro cellspacing() %}
 {% if loop.first %}
