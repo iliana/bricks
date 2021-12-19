@@ -20,6 +20,14 @@
     @apply box-content;
   }
 
+  header a {
+    @apply no-underline text-black dark:text-white;
+  }
+
+  header a:hover .nav-word {
+    @apply underline;
+  }
+
   .icon svg {
     @apply inline h-5 w-5 md:h-6 md:w-6;
     vertical-align: -0.375em;

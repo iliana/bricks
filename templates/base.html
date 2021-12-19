@@ -9,18 +9,18 @@
   </head>
   <body class="text-sm md:text-base bg-white dark:bg-black text-black dark:text-white leading-relaxed">
     <div class="bg-gray-100 dark:bg-gray-900">
-      <div class="container mx-auto px-4 flex flex-row">
-        <div class="flex-1 my-4 space-x-8">
-          <a class="font-bold no-underline hover:underline text-black dark:text-white" href="/">
-            Bricks <span aria-hidden="true">:(&#x1F9F1;)</span>
-          </a>
-        </div>
-        <button id="dark-mode-toggle" class="flex flex-row items-baseline my-4">
+      <header class="container mx-auto p-4 flex flex-row gap-8">
+        <a class="font-bold flex-1 hover:underline" href="/">Bricks <span aria-hidden="true">:(&#x1F9F1;)</span></a>
+        <a href="/glossary">
+          <span class="icon">{% include "book.svg" %}</span>
+          <span class="nav-word sr-only md:not-sr-only">Glossary</span>
+        </a>
+        <button id="dark-mode-toggle" class="flex flex-row items-baseline">
           <span class="icon">{% include "dark-mode.svg" %}</span>
           <span class="dark:hidden sr-only">Dark mode</span>
           <span class="hidden dark:inline sr-only">Light mode</span>
         </button>
-      </div>
+      </header>
     </div>
     <script>
       (() => {
