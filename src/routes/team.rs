@@ -64,7 +64,7 @@ fn load_team(id: Uuid, season: Season) -> Result<Option<TeamPage>> {
         }};
     }
 
-    Ok(Some(TeamPage {
+    let mut page = TeamPage {
         team: name,
         seasons,
         schedule,
@@ -76,7 +76,10 @@ fn load_team(id: Uuid, season: Season) -> Result<Option<TeamPage>> {
             && s.stats.is_pitching()),
         postseason_pitching: tabler!(pitching, true, |s| s.is_postseason && s.stats.is_pitching()),
         season,
-    }))
+    };
+    page.postseason_batting.table.skip("OPS+");
+    page.postseason_pitching.table.skip("ERA+");
+    Ok(Some(page))
 }
 
 #[derive(Template)]
