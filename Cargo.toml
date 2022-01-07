@@ -6,7 +6,7 @@ publish = false
 
 [dependencies]
 anyhow = { version = "1", features = ["backtrace"] }
-askama = "0.10"
+askama = { version = "0.11", default-features = false }
 chrono = { version = "0.4", features = ["serde"] }
 csv = "1"
 derive_more = "0.99"
