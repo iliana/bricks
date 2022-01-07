@@ -1,6 +1,6 @@
 use crate::names::{self, TeamName};
 use crate::seasons::{self, Season};
-use crate::{debug::LogEntry, percentage::Pct, state::State, summary, DB};
+use crate::{debug::LogEntry, fraction::Fraction, percentage::Pct, state::State, summary, DB};
 use anyhow::Result;
 use derive_more::{Add, AddAssign, Sum};
 use indexmap::{IndexMap, IndexSet};
@@ -364,6 +364,19 @@ impl Stats {
     pub fn era_plus(&self, league: Stats) -> Pct<0> {
         let pct = league.earned_run_average().0 / self.earned_run_average().0;
         Pct(pct * 100.into())
+    }
+
+    fn fip_base(&self) -> Fraction {
+        Fraction::new(
+            3 * (i64::from(self.home_runs_allowed) * 13 + i64::from(self.walks_issued) * 3
+                - i64::from(self.struck_outs) * 2),
+            u64::from(self.outs_recorded),
+        )
+    }
+
+    pub fn fielding_independent_pitching(&self, league: Stats) -> Pct<2> {
+        let c = league.earned_run_average().0 - league.fip_base();
+        Pct(self.fip_base() + c)
     }
 
     pub fn pitches_strikes(&self) -> String {

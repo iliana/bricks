@@ -79,6 +79,7 @@ fn load_team(id: Uuid, season: Season) -> Result<Option<TeamPage>> {
     };
     page.postseason_batting.table.skip("OPS+");
     page.postseason_pitching.table.skip("ERA+");
+    page.postseason_pitching.table.skip("FIP");
     Ok(Some(page))
 }
 

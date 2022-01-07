@@ -65,6 +65,7 @@ fn load_player(id: Uuid) -> Result<Option<PlayerPage>> {
     };
     page.postseason_batting.table.skip("OPS+");
     page.postseason_pitching.table.skip("ERA+");
+    page.postseason_pitching.table.skip("FIP");
     Ok(Some(page))
 }
 
