@@ -6,10 +6,10 @@ COPY . .
 RUN --mount=type=cache,target=/root/.npm \
   npm ci && npx postcss --env production styles.css -o styles.min.css
 
-FROM rust:1.57-buster as twemoji
+FROM rust:1.58-buster as twemoji
 RUN svn export https://github.com/twitter/twemoji/tags/v13.1.0/assets/svg twemoji
 
-FROM rust:1.57-buster as builder
+FROM rust:1.58-buster as builder
 COPY --from=golang:1.17-buster /usr/local/go /usr/local/go
 ENV PATH /usr/local/go/bin:$PATH
 WORKDIR /usr/src/bricks
