@@ -411,7 +411,12 @@ impl State {
             20 => {} // Shame!
             23 => {} // player skipped (Elsewhere or Shelled)
             28 => {} // end of inning
-            41 => {} // Feedback swap (handled in type 113)
+            41 => {
+                if desc.ends_with("switch teams in the feedback!") {
+                    ensure!(event.player_tags.len() == 2, "invalid team tag count");
+                    self.player_trade(event.player_tags[0], event.player_tags[1])?;
+                }
+            }
             47 => {} // swallowed peanut
             54 => {} // incineration
             62 => {
@@ -447,33 +452,8 @@ impl State {
             }
             113 => {
                 // Trade (e.g. Feedback swap)
+                // for feedback, handled in 41
                 checkdesc!(desc.ends_with("were swapped in Feedback."));
-                self.ensure_pitchers_known()?;
-                let trade = match &event.metadata.extra {
-                    Some(ExtraData::Trade(trade)) => trade,
-                    _ => bail!("missing player trade data"),
-                };
-                for team in self.game.teams_mut() {
-                    if team.id == trade.a_team_id {
-                        team.player_names
-                            .insert(trade.b_player_id, trade.b_player_name.clone());
-                    } else if team.id == trade.b_team_id {
-                        team.player_names
-                            .insert(trade.a_player_id, trade.a_player_name.clone());
-                    }
-                    for position in team.positions_mut() {
-                        if position.last() == Some(&trade.a_player_id) {
-                            position.push(trade.b_player_id);
-                        } else if position.last() == Some(&trade.b_player_id) {
-                            position.push(trade.a_player_id);
-                        }
-                    }
-                }
-                if self.at_bat == Some(trade.a_player_id) {
-                    self.at_bat = Some(trade.b_player_id);
-                } else if self.at_bat == Some(trade.b_player_id) {
-                    self.at_bat = Some(trade.a_player_id);
-                }
             }
             114 => {
                 // Swap within team
@@ -481,31 +461,11 @@ impl State {
                     desc.ends_with("swapped two players on their roster.")
                         || desc.ends_with("had several players shuffled in the Reverb!")
                 );
-                self.ensure_pitchers_known()?;
                 let swap = match &event.metadata.extra {
                     Some(ExtraData::Swap(swap)) => swap,
                     _ => bail!("missing player swap data"),
                 };
-                for team in self.game.teams_mut() {
-                    if team.id == swap.team_id {
-                        team.player_names
-                            .insert(swap.a_player_id, swap.a_player_name.clone());
-                        team.player_names
-                            .insert(swap.b_player_id, swap.b_player_name.clone());
-                        for position in team.positions_mut() {
-                            if position.last() == Some(&swap.a_player_id) {
-                                position.push(swap.b_player_id);
-                            } else if position.last() == Some(&swap.b_player_id) {
-                                position.push(swap.a_player_id);
-                            }
-                        }
-                    }
-                }
-                if self.at_bat == Some(swap.a_player_id) {
-                    self.at_bat = Some(swap.b_player_id);
-                } else if self.at_bat == Some(swap.b_player_id) {
-                    self.at_bat = Some(swap.a_player_id);
-                }
+                self.player_trade(swap.a_player_id, swap.b_player_id)?;
             }
             116 => {
                 // Incineration
@@ -982,6 +942,43 @@ impl State {
         } else {
             Ok(false)
         }
+    }
+
+    fn player_trade(&mut self, a: Uuid, b: Uuid) -> Result<()> {
+        self.ensure_pitchers_known()?;
+        let mut a_name = self
+            .game
+            .teams()
+            .find_map(|team| team.player_names.get(&a))
+            .cloned();
+        let mut b_name = self
+            .game
+            .teams()
+            .find_map(|team| team.player_names.get(&b))
+            .cloned();
+        for team in self.game.teams_mut() {
+            let mut insert_names = Vec::new();
+            for position in team.positions_mut() {
+                if position.last() == Some(&a) {
+                    position.push(b);
+                    if let Some(name) = b_name.take() {
+                        insert_names.push((b, name));
+                    }
+                } else if position.last() == Some(&b) {
+                    position.push(a);
+                    if let Some(name) = a_name.take() {
+                        insert_names.push((a, name));
+                    }
+                }
+            }
+            team.player_names.extend(insert_names);
+        }
+        if self.at_bat == Some(a) {
+            self.at_bat = Some(b)
+        } else if self.at_bat == Some(b) {
+            self.at_bat = Some(a)
+        }
+        Ok(())
     }
 
     fn offense(&self) -> &Team {

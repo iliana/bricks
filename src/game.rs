@@ -264,6 +264,10 @@ impl Team {
         self.stats.values().map(|s| s.hits()).sum()
     }
 
+    pub fn positions(&self) -> impl Iterator<Item = &Vec<Uuid>> {
+        self.lineup.iter().chain([&self.pitchers])
+    }
+
     pub fn positions_mut(&mut self) -> impl Iterator<Item = &mut Vec<Uuid>> {
         self.lineup.iter_mut().chain([&mut self.pitchers])
     }
