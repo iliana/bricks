@@ -1,4 +1,4 @@
-use crate::names::{self, TeamName};
+// use crate::names::{self, TeamName};
 use crate::{seasons::Season, API_BASE, CLIENT, DB};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -7,6 +7,7 @@ use std::collections::BTreeMap;
 use std::mem::size_of_val;
 use uuid::Uuid;
 
+/*
 const TREE: &str = "schedule_v1";
 
 #[derive(Debug, Default, Clone, Copy, Serialize)]
@@ -53,6 +54,7 @@ pub fn schedule(team: Uuid, season: &Season) -> Result<Vec<(Record, Entry)>> {
     }
     Ok(v)
 }
+*/
 
 // =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=
 
@@ -66,7 +68,7 @@ pub async fn load(season: &Season, start_day: u16, end_day: u16) -> Result<Vec<U
         end_day: u16,
     }
 
-    let tree = DB.open_tree(TREE)?;
+    // let tree = DB.open_tree(TREE)?;
     let cache_tree = DB.open_tree("cache_schedule_v1")?;
 
     let mut cached: BTreeMap<u16, Vec<Game>> = BTreeMap::new();
@@ -105,10 +107,11 @@ pub async fn load(season: &Season, start_day: u16, end_day: u16) -> Result<Vec<U
     }
 
     let mut v = Vec::new();
-    for (day, games) in cached {
+    for (_day, games) in cached {
         for game in games {
             v.push(game.id);
 
+            /*
             for team in [game.away_team, game.home_team] {
                 let mut key = Vec::with_capacity(
                     season.sim.len()
@@ -136,6 +139,7 @@ pub async fn load(season: &Season, start_day: u16, end_day: u16) -> Result<Vec<U
                     .as_slice(),
                 )?;
             }
+            */
         }
     }
     Ok(v)
@@ -152,14 +156,10 @@ fn filter_complete(schedule: Vec<Game>) -> Vec<Game> {
 #[serde(rename_all = "camelCase")]
 struct Game {
     id: Uuid,
-    away_team: Uuid,
-    home_team: Uuid,
-    away_score: u16,
-    home_score: u16,
     game_complete: bool,
-    winner: Option<Uuid>,
 }
 
+/*
 impl Game {
     fn winner(&self) -> Uuid {
         if let Some(winner) = self.winner {
@@ -187,6 +187,7 @@ impl Game {
         }
     }
 }
+*/
 
 // =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=
 
