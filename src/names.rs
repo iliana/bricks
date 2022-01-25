@@ -37,6 +37,10 @@ impl TeamName {
         let mut hasher = twox_hash::XxHash64::default();
         if self.name == "Ohio Peanuts" && self.emoji == "\u{1f95c}" {
             "\u{1f40c}"
+        } else if self.name == "Tokyo Lift"
+            && self.emoji == "\u{1f3cb}\u{fe0f}\u{200d}\u{2640}\u{fe0f}"
+        {
+            "\u{1f3cb}"
         } else {
             &self.emoji
         }
