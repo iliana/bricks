@@ -36,7 +36,6 @@ const GITHUB_SHA: Option<&str> = option_env!("GITHUB_SHA");
 
 const API_BASE: &str = "https://api.blaseball.com";
 const CHRONICLER_BASE: &str = "https://api.sibr.dev/chronicler";
-const CONFIGS_BASE: &str = "https://blaseball-configs.s3.us-west-2.amazonaws.com";
 const SACHET_BASE: &str = "https://api.sibr.dev/eventually/sachet";
 
 static REBUILDING: AtomicBool = AtomicBool::new(false);

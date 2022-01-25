@@ -3,7 +3,7 @@ use crate::routes::season::{
     rocket_uri_macro_season_team_batting, rocket_uri_macro_season_team_pitching,
 };
 use crate::routes::team::rocket_uri_macro_team;
-use crate::{CLIENT, CONFIGS_BASE, DB};
+use crate::DB;
 use anyhow::{Context, Result};
 use rocket::uri;
 use serde::{Deserialize, Serialize};
@@ -20,12 +20,7 @@ pub const RECORDED_TREE: &str = "recorded_seasons_v1";
 pub async fn load() -> Result<()> {
     let name_tree = DB.open_tree(NAME_TREE)?;
     let sort_tree = DB.open_tree(SORT_TREE)?;
-    let response: Response = CLIENT
-        .get(format!("{}/feed_season_list.json", CONFIGS_BASE))
-        .send()
-        .await?
-        .json()
-        .await?;
+    let response: Response = serde_json::from_str(include_str!("../feed_season_list.json"))?;
     for era in response.collection {
         sort_tree.insert(era.sim.as_bytes(), &era.index.to_be_bytes())?;
 
