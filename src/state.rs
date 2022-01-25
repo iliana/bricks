@@ -1,5 +1,5 @@
 use crate::feed::{ExtraData, GameEvent};
-use crate::game::{Game, Stats, Team};
+use crate::game::{Game, Kind, Stats, Team};
 use crate::{seasons::Season, team};
 use anyhow::{anyhow, bail, ensure, Context, Result};
 use itertools::Itertools;
@@ -350,15 +350,11 @@ impl State {
             }
             11 => {
                 self.game_finished = true;
-                match &event.metadata.extra {
-                    Some(ExtraData::Winner { winner }) => {
-                        for team in self.game.teams_mut() {
-                            if team.id == *winner {
-                                team.won = true;
-                            }
-                        }
+                let winner = event.metadata.winner.context("missing winner data")?;
+                for team in self.game.teams_mut() {
+                    if team.id == winner {
+                        team.won = true;
                     }
-                    _ => bail!("missing winner data"),
                 }
                 for team in self.game.teams_mut() {
                     let stats = team
@@ -547,21 +543,13 @@ impl State {
                 // do nothing, because type 3 will follow
             }
             137 => {} // player hatched
-            193 => {} // declaration of prize match
-            209 => {} // score message
-            214 | 215 => {
-                checkdesc!(desc.ends_with("collected a Win."));
-                if event.ty == 215 {
-                    self.game.is_postseason = true;
-                }
-                // workaround for gamma9 postseason feed issue
-                if self.game.season.sim == "gamma9"
-                    && self.game.season.season == 0
-                    && self.game.day >= 166
-                {
-                    self.game.is_postseason = true;
-                }
+            193 => {
+                // prize match
+                self.game.kind = Kind::Special;
             }
+            209 => {} // score message
+            214 => {} // collected a Win
+            215 => {} // collected a Win (postseason, sometimes)
             216 => {} // game over
             223 => {} // weather is happening
             252 => {} // Night Shift (handled in type 114)
@@ -658,6 +646,30 @@ impl State {
 
     async fn start_event(&mut self, event: &GameEvent) -> Result<()> {
         self.game.day = event.day;
+        self.game.weather = event.metadata.weather.context("missing weather")?;
+
+        self.game.kind = if self.game.season.sim == "gamma8" {
+            if self.game.day >= 99 {
+                Kind::Postseason
+            } else {
+                Kind::Regular
+            }
+        } else if self.game.season.sim == "gamma9" {
+            if self.game.day >= 166 {
+                Kind::Postseason
+            } else {
+                Kind::Regular
+            }
+        } else if self.game.season.sim == "gamma10" {
+            if self.game.day >= 219 {
+                // probably gonna have to fix this
+                Kind::Postseason
+            } else {
+                Kind::Regular
+            }
+        } else {
+            Kind::Regular
+        };
 
         ensure!(event.team_tags.len() == 2, "invalid team tag count");
         for (team, id) in self.game.teams_mut().zip(event.team_tags.iter()) {

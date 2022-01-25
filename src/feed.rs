@@ -106,6 +106,9 @@ pub struct GameEventMetadata {
     pub sub_play: u16,
     pub sibling_ids: Vec<Uuid>,
 
+    pub weather: Option<u16>,
+    pub winner: Option<Uuid>,
+
     #[serde(flatten)]
     pub extra: Option<ExtraData>,
 }
@@ -114,7 +117,6 @@ pub struct GameEventMetadata {
 #[serde(untagged)]
 pub enum ExtraData {
     Modification { r#mod: String },
-    Winner { winner: Uuid },
     Trade(PlayerTradeData),
     Swap(PlayerSwapData),
     Incineration(IncinerationReplacementData),

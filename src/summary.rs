@@ -24,8 +24,8 @@ pub fn write_summary(
 
         for (id, stats) in team.stats.iter().map(|v| (*v.0, *v.1)) {
             for key in [
-                build_key(team.id, id, &game.season, game.is_postseason),
-                build_key(id, team.id, &game.season, game.is_postseason),
+                build_key(team.id, id, &game.season, game.is_postseason()),
+                build_key(id, team.id, &game.season, game.is_postseason()),
             ] {
                 let mut value = match tree.get(&key)? {
                     None => Value::new(game.day),
@@ -41,7 +41,7 @@ pub fn write_summary(
                 )?;
             }
 
-            if !game.is_postseason {
+            if !game.is_postseason() {
                 let key = build_season_key(&game.season, b'p', id);
                 let mut value = match season_tree.get(&key)? {
                     None => SeasonValue::default(),
@@ -69,7 +69,7 @@ pub fn write_summary(
         team_totals.games_pitched = 1;
         let key = build_season_key(
             &game.season,
-            if game.is_postseason { b'u' } else { b't' },
+            if game.is_postseason() { b'u' } else { b't' },
             team.id,
         );
         let mut value = match season_tree.get(&key)? {

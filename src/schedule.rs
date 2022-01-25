@@ -1,3 +1,4 @@
+use crate::game::Kind;
 use crate::names::TeamName;
 use crate::{seasons::Season, API_BASE, CLIENT, DB};
 use anyhow::Result;
@@ -25,11 +26,19 @@ impl Record {
 pub struct Entry {
     pub id: Uuid,
     pub day: u16,
+    #[serde(default)]
+    pub kind: Kind,
     pub home: bool,
     pub opponent: TeamName,
     pub won: bool,
     pub score: u16,
     pub opponent_score: u16,
+}
+
+impl Entry {
+    pub fn is_special(&self) -> bool {
+        self.kind == Kind::Special
+    }
 }
 
 pub fn schedule(team: Uuid, season: &Season) -> Result<Vec<(Record, Entry)>> {
@@ -44,10 +53,12 @@ pub fn schedule(team: Uuid, season: &Season) -> Result<Vec<(Record, Entry)>> {
     for row in tree.scan_prefix(&search_key) {
         let (_, value) = row?;
         let entry: Entry = serde_json::from_slice(&value)?;
-        if entry.won {
-            record.wins += 1;
-        } else {
-            record.losses += 1;
+        if entry.kind != Kind::Special {
+            if entry.won {
+                record.wins += 1;
+            } else {
+                record.losses += 1;
+            }
         }
         v.push((record, entry));
     }

@@ -120,6 +120,7 @@ pub async fn process(season: Season, id: Uuid, force: bool) -> Result<bool> {
                             serde_json::to_vec(&schedule::Entry {
                                 id,
                                 day: game.day,
+                                kind: game.kind,
                                 home: game.home.id == team.id,
                                 opponent: opponent.name.clone(),
                                 won: game.winner().id == team.id,
@@ -162,9 +163,12 @@ pub struct Game {
     #[serde(flatten)]
     pub season: Season,
     pub day: u16,
-    pub is_postseason: bool,
+    #[serde(default)]
+    pub kind: Kind,
     pub away: Team,
     pub home: Team,
+    #[serde(default)]
+    pub weather: u16,
 }
 
 impl Game {
@@ -199,6 +203,10 @@ impl Game {
             &self.away
         }
     }
+
+    pub fn is_postseason(&self) -> bool {
+        self.kind == Kind::Postseason
+    }
 }
 
 impl<'a> IntoIterator for &'a Game {
@@ -207,6 +215,22 @@ impl<'a> IntoIterator for &'a Game {
 
     fn into_iter(self) -> Self::IntoIter {
         [&self.away, &self.home].into_iter()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+pub enum Kind {
+    /// This game affects regular season standings
+    Regular,
+    /// This is a postseason game
+    Postseason,
+    /// This is a game played during the regular season that does not affect standings
+    Special,
+}
+
+impl Default for Kind {
+    fn default() -> Kind {
+        Kind::Regular
     }
 }
 
