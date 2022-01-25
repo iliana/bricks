@@ -428,26 +428,25 @@ impl State {
             84 => {} // player returned from Elsewhere
             106 | 107 | 146 | 147 => {
                 // modification added or removed
-                match &event.metadata.extra {
-                    Some(ExtraData::Modification { r#mod: m }) => {
-                        if m == "FROZEN" {
-                            if let Some(name) = desc.strip_suffix(" was Frozen!") {
-                                // we only care about FROZEN for calculating CRiSP, which requires
-                                // that they're on base. if we can't look up their name, they can't
-                                // be on base.
-                                if let Ok(player) =
-                                    self.name_lookup(name, event.player_tags.get(0).copied())
-                                {
-                                    if event.ty & 1 == 0 {
-                                        self.mods.insert((player, "FROZEN"));
-                                    } else {
-                                        self.mods.remove(&(player, "FROZEN"));
-                                    }
+                match event.metadata.r#mod.as_deref() {
+                    Some("FROZEN") => {
+                        if let Some(name) = desc.strip_suffix(" was Frozen!") {
+                            // we only care about FROZEN for calculating CRiSP, which requires
+                            // that they're on base. if we can't look up their name, they can't
+                            // be on base.
+                            if let Ok(player) =
+                                self.name_lookup(name, event.player_tags.get(0).copied())
+                            {
+                                if event.ty & 1 == 0 {
+                                    self.mods.insert((player, "FROZEN"));
+                                } else {
+                                    self.mods.remove(&(player, "FROZEN"));
                                 }
                             }
                         }
                     }
-                    _ => bail!("missing modification data"),
+                    Some(_) => {}
+                    None => bail!("missing modification data"),
                 }
             }
             113 => {

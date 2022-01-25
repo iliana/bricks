@@ -106,6 +106,7 @@ pub struct GameEventMetadata {
     pub sub_play: u16,
     pub sibling_ids: Vec<Uuid>,
 
+    pub r#mod: Option<String>,
     pub weather: Option<u16>,
     pub winner: Option<Uuid>,
 
@@ -116,21 +117,8 @@ pub struct GameEventMetadata {
 #[derive(Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(untagged)]
 pub enum ExtraData {
-    Modification { r#mod: String },
-    Trade(PlayerTradeData),
     Swap(PlayerSwapData),
     Incineration(IncinerationReplacementData),
-}
-
-#[derive(Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
-#[serde(rename_all = "camelCase")]
-pub struct PlayerTradeData {
-    pub a_player_id: Uuid,
-    pub a_player_name: String,
-    pub a_team_id: Uuid,
-    pub b_player_id: Uuid,
-    pub b_player_name: String,
-    pub b_team_id: Uuid,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
