@@ -1,7 +1,7 @@
 use crate::feed::{ExtraData, GameEvent};
 use crate::game::{Game, Stats, Team};
 use crate::{seasons::Season, team};
-use anyhow::{bail, ensure, Context, Result};
+use anyhow::{anyhow, bail, ensure, Context, Result};
 use itertools::Itertools;
 use serde::Serialize;
 use std::cmp::Ordering;
@@ -166,6 +166,17 @@ impl State {
         Ok(())
     }
 
+    fn name_lookup(&self, name: &str, id: Option<Uuid>) -> Result<Uuid> {
+        id.or_else(|| {
+            self.offense()
+                .player_names
+                .iter()
+                .find(|(_, n)| n.as_str() == name)
+                .map(|(id, _)| *id)
+        })
+        .ok_or_else(|| anyhow!("unable to find ID for {}", name))
+    }
+
     pub async fn push(&mut self, event: &GameEvent) -> Result<()> {
         self.push_inner(event)
             .await
@@ -286,20 +297,23 @@ impl State {
             }
             4 => {
                 // Stolen base
-                checkdesc!(desc.contains("gets caught stealing") || desc.contains("steals"));
-                ensure!(event.player_tags.len() == 1, "invalid player tag count");
-                self.rbi_credit = None;
-                if desc.contains("gets caught stealing") {
-                    self.record_runner_event(event.player_tags[0], |s| &mut s.caught_stealing)?;
+                if let Some((name, _)) = desc.rsplit_once(" gets caught stealing ") {
+                    checkdesc!(desc.ends_with(" base."));
+                    let runner = self.name_lookup(name, event.player_tags.get(0).copied())?;
+                    self.record_runner_event(runner, |s| &mut s.caught_stealing)?;
                     self.half_inning_outs += 1;
                     self.record_pitcher_event(|s| &mut s.outs_recorded)?;
-                    self.remove_runner(event.player_tags[0])?
+                    self.remove_runner(runner)?
                         .context("runner caught stealing wasn't on base?")?;
-                } else {
-                    self.record_runner_event(event.player_tags[0], |s| &mut s.stolen_bases)?;
+                } else if let Some((name, _)) = desc.rsplit_once(" steals ") {
+                    checkdesc!(desc.ends_with(" base!"));
+                    let runner = self.name_lookup(name, event.player_tags.get(0).copied())?;
+                    self.record_runner_event(runner, |s| &mut s.stolen_bases)?;
                     if desc.ends_with("steals fourth base!") {
-                        self.credit_run(event.player_tags[0])?;
+                        self.credit_run(runner)?;
                     }
+                } else {
+                    checkdesc!(false);
                 }
             }
             5 => checkdesc!(self.walk(event)?),
@@ -336,6 +350,16 @@ impl State {
             }
             11 => {
                 self.game_finished = true;
+                match &event.metadata.extra {
+                    Some(ExtraData::Winner { winner }) => {
+                        for team in self.game.teams_mut() {
+                            if team.id == *winner {
+                                team.won = true;
+                            }
+                        }
+                    }
+                    _ => bail!("missing winner data"),
+                }
                 for team in self.game.teams_mut() {
                     let stats = team
                         .stats
@@ -403,14 +427,22 @@ impl State {
             84 => {} // player returned from Elsewhere
             106 | 107 | 146 | 147 => {
                 // modification added or removed
-                ensure!(event.player_tags.len() == 1, "invalid player tag count");
                 match &event.metadata.extra {
                     Some(ExtraData::Modification { r#mod: m }) => {
-                        if let Some(m) = &["FROZEN"].iter().copied().find(|x| x == m) {
-                            if event.ty & 1 == 0 {
-                                self.mods.insert((event.player_tags[0], m));
-                            } else {
-                                self.mods.remove(&(event.player_tags[0], m));
+                        if m == "FROZEN" {
+                            if let Some(name) = desc.strip_suffix(" was Frozen!") {
+                                // we only care about FROZEN for calculating CRiSP, which requires
+                                // that they're on base. if we can't look up their name, they can't
+                                // be on base.
+                                if let Ok(player) =
+                                    self.name_lookup(name, event.player_tags.get(0).copied())
+                                {
+                                    if event.ty & 1 == 0 {
+                                        self.mods.insert((player, "FROZEN"));
+                                    } else {
+                                        self.mods.remove(&(player, "FROZEN"));
+                                    }
+                                }
                             }
                         }
                     }
@@ -508,21 +540,17 @@ impl State {
             }
             117 => {} // player stat increase
             118 => {} // player stat decrease
+            119 => {} // player stat reroll
             125 => {} // player entered Hall of Flame
             132 => {
                 checkdesc!(desc.ends_with("had their rotation shuffled in the Reverb!"));
                 // do nothing, because type 3 will follow
             }
             137 => {} // player hatched
+            193 => {} // declaration of prize match
             209 => {} // score message
             214 | 215 => {
                 checkdesc!(desc.ends_with("collected a Win."));
-                ensure!(event.team_tags.len() == 1, "invalid team tag count");
-                for team in self.game.teams_mut() {
-                    if team.id == event.team_tags[0] {
-                        team.won = true;
-                    }
-                }
                 if event.ty == 215 {
                     self.game.is_postseason = true;
                 }
@@ -852,9 +880,9 @@ impl State {
             self.check_save_situation();
             self.record_pitcher_event(|s| &mut s.walks_issued)?;
             Ok(true)
-        } else if event.description.ends_with("scores!") {
-            ensure!(event.player_tags.len() == 2, "invalid player tag count");
-            self.credit_run(event.player_tags[1])?;
+        } else if let Some(name) = event.description.strip_suffix(" scores!") {
+            let runner = self.name_lookup(name, event.player_tags.get(1).copied())?;
+            self.credit_run(runner)?;
             Ok(true)
         } else {
             Ok(false)
@@ -935,9 +963,9 @@ impl State {
         } else if event.ty == 10 && desc.ends_with("hits a Triple!") {
             self.record_batter_event(|s| &mut s.triples)?;
             common!(2)
-        } else if desc.ends_with("scores!") {
-            ensure!(event.player_tags.len() == 1, "invalid player tag count");
-            self.credit_run(event.player_tags[0])?;
+        } else if let Some(name) = desc.strip_suffix(" scores!") {
+            let runner = self.name_lookup(name, event.player_tags.get(0).copied())?;
+            self.credit_run(runner)?;
             Ok(true)
         } else {
             Ok(false)

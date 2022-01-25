@@ -114,6 +114,7 @@ pub struct GameEventMetadata {
 #[serde(untagged)]
 pub enum ExtraData {
     Modification { r#mod: String },
+    Winner { winner: Uuid },
     Trade(PlayerTradeData),
     Swap(PlayerSwapData),
     Incineration(IncinerationReplacementData),
