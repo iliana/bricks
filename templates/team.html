@@ -9,7 +9,6 @@
   y2="{{ y2 }}"
   class="{{ class }} stroke-current"
   stroke-width="1px"
-  stroke-linecap="square"
   vector-effect="non-scaling-stroke"
 />
 {% endmacro %}
@@ -69,7 +68,14 @@
       {% endif %}
     {% endif %}
     {% if entry.is_special() %}
-    <image x="{{ loop.index0 }}" y="-0.6667" width="1" height="1.3333" href="/twemoji/2b50.svg" />
+    <image
+      x="{{ loop.index0 }}"
+      y="-0.6667"
+      width="1"
+      height="1.3333"
+      href="/twemoji/2b50.svg"
+      preserveAspectRatio="none"
+    />
     {% endif %}
     <a href="/game/{{ entry.id }}">
       <title>
