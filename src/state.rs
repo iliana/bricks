@@ -74,6 +74,15 @@ impl State {
         ensure!(game.away.won ^ game.home.won, "winner mismatch");
 
         for (i, team) in game.teams_mut().enumerate() {
+            for position in team.positions() {
+                for player in position {
+                    ensure!(
+                        team.player_names.contains_key(player),
+                        "name for {} missing",
+                        player
+                    );
+                }
+            }
             if team.pitcher_of_record == Uuid::default() {
                 // the starting pitcher was cleared as the pitcher of record because they pitched
                 // less than 5 innings, making them ineligible for the win ...
