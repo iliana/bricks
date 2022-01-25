@@ -1,6 +1,8 @@
 use crate::names::{self, TeamName};
 use crate::seasons::{self, Season};
-use crate::{debug::LogEntry, fraction::Fraction, percentage::Pct, state::State, summary, DB};
+use crate::{
+    debug::LogEntry, fraction::Fraction, percentage::Pct, schedule, state::State, summary, DB,
+};
 use anyhow::Result;
 use derive_more::{Add, AddAssign, Sum};
 use indexmap::{IndexMap, IndexSet};
@@ -30,6 +32,7 @@ pub async fn process(season: Season, id: Uuid, force: bool) -> Result<bool> {
         let names_tree = DB.open_tree(names::TREE)?;
         let common_names_tree = DB.open_tree(names::COMMON_TREE)?;
         let recorded_tree = DB.open_tree(seasons::RECORDED_TREE)?;
+        let schedule_tree = DB.open_tree(schedule::TREE)?;
 
         let mut state = State::new(season);
         let mut debug_log = Vec::new();
@@ -77,6 +80,7 @@ pub async fn process(season: Season, id: Uuid, force: bool) -> Result<bool> {
             &names_tree,
             &common_names_tree,
             &recorded_tree,
+            &schedule_tree,
         )
             .transaction(
                 |(
@@ -86,6 +90,7 @@ pub async fn process(season: Season, id: Uuid, force: bool) -> Result<bool> {
                     names_tree,
                     common_names_tree,
                     recorded_tree,
+                    schedule_tree,
                 )| {
                     for team in game.teams() {
                         names_tree.insert(
@@ -102,6 +107,28 @@ pub async fn process(season: Season, id: Uuid, force: bool) -> Result<bool> {
                         common_key.extend_from_slice(&game.season.season.to_ne_bytes());
                         common_key.extend_from_slice(game.season.sim.as_bytes());
                         common_names_tree.insert(common_key, team.id.as_bytes())?;
+
+                        let mut schedule_key = Vec::new();
+                        schedule_key.extend_from_slice(game.season.sim.as_bytes());
+                        schedule_key.extend_from_slice(&game.season.season.to_ne_bytes());
+                        schedule_key.extend_from_slice(team.id.as_bytes());
+                        schedule_key.extend_from_slice(&game.day.to_be_bytes());
+
+                        let opponent = game.opponent(team.id);
+                        schedule_tree.insert(
+                            schedule_key.as_slice(),
+                            serde_json::to_vec(&schedule::Entry {
+                                id,
+                                day: game.day,
+                                home: game.home.id == team.id,
+                                opponent: opponent.name.clone(),
+                                won: game.winner().id == team.id,
+                                score: team.runs(),
+                                opponent_score: opponent.runs(),
+                            })
+                            .map_err(ConflictableTransactionError::Abort)?
+                            .as_slice(),
+                        )?;
                     }
 
                     summary::write_summary(summary_tree, season_summary_tree, &game)?;
@@ -159,6 +186,14 @@ impl Game {
 
     pub fn loser(&self) -> &Team {
         if self.away.won {
+            &self.home
+        } else {
+            &self.away
+        }
+    }
+
+    pub fn opponent(&self, team: Uuid) -> &Team {
+        if self.away.id == team {
             &self.home
         } else {
             &self.away

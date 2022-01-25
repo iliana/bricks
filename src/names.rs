@@ -24,7 +24,7 @@ pub fn team_name(id: Uuid) -> Result<Option<TeamName>> {
     })
 }
 
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Debug, Default, Clone, Deserialize, Serialize)]
 pub struct TeamName {
     pub name: String,
     pub nickname: String,

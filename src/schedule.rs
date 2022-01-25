@@ -1,4 +1,4 @@
-// use crate::names::{self, TeamName};
+use crate::names::TeamName;
 use crate::{seasons::Season, API_BASE, CLIENT, DB};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -7,8 +7,7 @@ use std::collections::BTreeMap;
 use std::mem::size_of_val;
 use uuid::Uuid;
 
-/*
-const TREE: &str = "schedule_v1";
+pub const TREE: &str = "schedule_v1";
 
 #[derive(Debug, Default, Clone, Copy, Serialize)]
 pub struct Record {
@@ -54,7 +53,6 @@ pub fn schedule(team: Uuid, season: &Season) -> Result<Vec<(Record, Entry)>> {
     }
     Ok(v)
 }
-*/
 
 // =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=
 
@@ -68,7 +66,6 @@ pub async fn load(season: &Season, start_day: u16, end_day: u16) -> Result<Vec<U
         end_day: u16,
     }
 
-    // let tree = DB.open_tree(TREE)?;
     let cache_tree = DB.open_tree("cache_schedule_v1")?;
 
     let mut cached: BTreeMap<u16, Vec<Game>> = BTreeMap::new();
@@ -106,43 +103,7 @@ pub async fn load(season: &Season, start_day: u16, end_day: u16) -> Result<Vec<U
         }
     }
 
-    let mut v = Vec::new();
-    for (_day, games) in cached {
-        for game in games {
-            v.push(game.id);
-
-            /*
-            for team in [game.away_team, game.home_team] {
-                let mut key = Vec::with_capacity(
-                    season.sim.len()
-                        + size_of_val(&season.season)
-                        + size_of_val(&team)
-                        + size_of_val(&day),
-                );
-                key.extend_from_slice(season.sim.as_bytes());
-                key.extend_from_slice(&season.season.to_ne_bytes());
-                key.extend_from_slice(team.as_bytes());
-                key.extend_from_slice(&day.to_be_bytes());
-
-                let (opponent_id, opponent_score) = game.opponent(team);
-                tree.insert(
-                    key.as_slice(),
-                    serde_json::to_vec(&Entry {
-                        id: game.id,
-                        day,
-                        home: game.home_team == team,
-                        opponent: names::team_name(opponent_id)?.unwrap_or_default(),
-                        won: game.winner() == team,
-                        score: game.score(team),
-                        opponent_score,
-                    })?
-                    .as_slice(),
-                )?;
-            }
-            */
-        }
-    }
-    Ok(v)
+    Ok(cached.values().flatten().map(|game| game.id).collect())
 }
 
 fn filter_complete(schedule: Vec<Game>) -> Vec<Game> {
@@ -158,36 +119,6 @@ struct Game {
     id: Uuid,
     game_complete: bool,
 }
-
-/*
-impl Game {
-    fn winner(&self) -> Uuid {
-        if let Some(winner) = self.winner {
-            winner
-        } else if self.home_score > self.away_score {
-            self.home_team
-        } else {
-            self.away_team
-        }
-    }
-
-    fn score(&self, team: Uuid) -> u16 {
-        if team == self.home_team {
-            self.home_score
-        } else {
-            self.away_score
-        }
-    }
-
-    fn opponent(&self, team: Uuid) -> (Uuid, u16) {
-        if team == self.home_team {
-            (self.away_team, self.away_score)
-        } else {
-            (self.home_team, self.home_score)
-        }
-    }
-}
-*/
 
 // =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=   =^..^=
 
