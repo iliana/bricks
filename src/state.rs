@@ -74,6 +74,20 @@ impl State {
         ensure!(game.away.won ^ game.home.won, "winner mismatch");
 
         for (i, team) in game.teams_mut().enumerate() {
+            // remove any players with all-zero stats and clean up references to them
+            team.stats.retain(|_, stats| stats != &Stats::default());
+            team.player_names
+                .retain(|id, _| team.stats.contains_key(id));
+            for position in &mut team.lineup {
+                position.retain(|id| team.stats.contains_key(id));
+            }
+            team.pitchers.retain(|id| team.stats.contains_key(id));
+            team.lineup.retain(|position| !position.is_empty());
+
+            ensure!(
+                team.pitchers.iter().all(|id| id != &Uuid::default()),
+                "placeholder pitcher ID found"
+            );
             for position in team.positions() {
                 for player in position {
                     ensure!(
@@ -83,6 +97,7 @@ impl State {
                     );
                 }
             }
+
             if team.pitcher_of_record == Uuid::default() {
                 // the starting pitcher was cleared as the pitcher of record because they pitched
                 // less than 5 innings, making them ineligible for the win ...
@@ -213,18 +228,17 @@ impl State {
                 self.top_of_inning,
             ),
         ] {
-            if team.pitchers.first().unwrap() == &Uuid::default() {
-                ensure!(
-                    team.pitchers.len() == 1 && team.pitcher_of_record == Uuid::default(),
-                    "roster change occurred while pitchers were unknown"
-                );
-                if let (Some(pitcher), Some(pitcher_name)) = (pitcher, pitcher_name) {
-                    *team.pitchers.get_mut(0).unwrap() = *pitcher;
+            if let (Some(pitcher), Some(pitcher_name)) = (pitcher, pitcher_name) {
+                if !team.player_names.contains_key(pitcher) {
+                    team.player_names.insert(*pitcher, pitcher_name.to_owned());
+                }
+
+                if team.pitchers.len() == 1 && team.pitchers[0] == Uuid::default() {
+                    team.pitchers[0] = *pitcher;
                     team.pitcher_of_record = *pitcher;
                     if let Some(stats) = team.stats.remove(&Uuid::default()) {
                         team.stats.insert(*pitcher, stats);
                     }
-                    team.player_names.insert(*pitcher, pitcher_name.to_owned());
                     if is_defense {
                         for runner in &mut self.on_base {
                             if runner.pitcher == Uuid::default() {
@@ -474,6 +488,15 @@ impl State {
                     _ => bail!("missing player swap data"),
                 };
                 self.player_trade(swap.a_player_id, swap.b_player_id)?;
+                // yolo
+                for (player, player_name) in [
+                    (swap.a_player_id, &swap.a_player_name),
+                    (swap.b_player_id, &swap.b_player_name),
+                ] {
+                    for team in self.game.teams_mut() {
+                        team.player_names.insert(player, player_name.clone());
+                    }
+                }
             }
             116 => {
                 // Incineration
@@ -537,6 +560,15 @@ impl State {
         if usize::from(event.metadata.sub_play) == event.metadata.sibling_ids.len() - 1 {
             self.last_fielded_out = None;
             self.rbi_credit = None;
+
+            for (team, pitcher) in [
+                (&mut self.game.away, &event.away_pitcher),
+                (&mut self.game.home, &event.home_pitcher),
+            ] {
+                if let Some(pitcher) = pitcher {
+                    ensure!(team.pitchers.last().unwrap() == pitcher, "pitcher mismatch");
+                }
+            }
 
             if self.half_inning_outs < 3 {
                 for runner in &self.on_base {
