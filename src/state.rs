@@ -440,7 +440,8 @@ impl State {
                     self.player_trade(event.player_tags[0], event.player_tags[1])?;
                 }
             }
-            47 => {} // swallowed peanut
+            46 => {} // yummy peanut reaction
+            47 => {} // allergic peanut reaction
             54 => {} // incineration
             62 => {
                 // Flooding: baserunners swept
