@@ -56,6 +56,7 @@ pub async fn process(season: Season, id: Uuid, force: bool) -> Result<bool> {
                         error: format!("{:?}", err),
                     });
                     debug_tree.insert(id.as_bytes(), serde_json::to_vec(&debug_log)?.as_slice())?;
+                    game_stats_tree.remove(id.as_bytes())?;
                     return Err(err);
                 }
             }
@@ -68,6 +69,7 @@ pub async fn process(season: Season, id: Uuid, force: bool) -> Result<bool> {
                     error: format!("{:?}", err),
                 });
                 debug_tree.insert(id.as_bytes(), serde_json::to_vec(&debug_log)?.as_slice())?;
+                game_stats_tree.remove(id.as_bytes())?;
                 return Err(err);
             }
         };
