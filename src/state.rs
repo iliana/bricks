@@ -280,40 +280,42 @@ impl State {
 
                     self.ensure_pitchers_known()?;
 
-                    // starting pitchers must pitch 5 innings to be credited for the win. clear the
-                    // pitcher of record if they are not eligible to record the win; if the losing
-                    // team's pitcher is still cleared by the end of the game, fill it back in with
-                    // the starting pitcher for the losing team.
-                    let old_pitcher = self.pitcher();
-                    if self.defense().pitchers.len() == 1
-                        && self.defense_stats(old_pitcher).outs_recorded < 15
-                    {
-                        self.defense_mut().pitcher_of_record = Uuid::default();
-                    }
-
-                    self.defense_mut().pitchers.push(event.player_tags[0]);
-                    self.defense_mut()
-                        .player_names
-                        .insert(event.player_tags[0], name.into());
-
-                    let offense_runs = self.offense().runs();
-                    let defense_runs = self.defense().runs();
-                    let save = &mut self.save_situation[if self.top_of_inning { 1 } else { 0 }];
-                    *save = if defense_runs > offense_runs {
-                        if offense_runs + 1 >= defense_runs
-                            || offense_runs + u16::try_from(self.on_base.len())? >= defense_runs
+                    if self.defense().pitchers.last() != Some(&event.player_tags[0]) {
+                        // starting pitchers must pitch 5 innings to be credited for the win. clear
+                        // the pitcher of record if they are not eligible to record the win; if the
+                        // losing team's pitcher is still cleared by the end of the game, fill it
+                        // back in with the starting pitcher for the losing team.
+                        let old_pitcher = self.pitcher();
+                        if self.defense().pitchers.len() == 1
+                            && self.defense_stats(old_pitcher).outs_recorded < 15
                         {
-                            // potential tying run on base or at bat
-                            // NOTE: on deck handled via `check_save_situation`
-                            Some(SaveSituation::TyingRun)
-                        } else if defense_runs - offense_runs <= 3 {
-                            Some(SaveSituation::LeadThreeOrLess)
+                            self.defense_mut().pitcher_of_record = Uuid::default();
+                        }
+
+                        self.defense_mut().pitchers.push(event.player_tags[0]);
+                        self.defense_mut()
+                            .player_names
+                            .insert(event.player_tags[0], name.into());
+
+                        let offense_runs = self.offense().runs();
+                        let defense_runs = self.defense().runs();
+                        let save = &mut self.save_situation[if self.top_of_inning { 1 } else { 0 }];
+                        *save = if defense_runs > offense_runs {
+                            if offense_runs + 1 >= defense_runs
+                                || offense_runs + u16::try_from(self.on_base.len())? >= defense_runs
+                            {
+                                // potential tying run on base or at bat
+                                // NOTE: on deck handled via `check_save_situation`
+                                Some(SaveSituation::TyingRun)
+                            } else if defense_runs - offense_runs <= 3 {
+                                Some(SaveSituation::LeadThreeOrLess)
+                            } else {
+                                None
+                            }
                         } else {
                             None
-                        }
-                    } else {
-                        None
-                    };
+                        };
+                    }
                 } else {
                     checkdesc!(false);
                 }
@@ -530,6 +532,55 @@ impl State {
             118 => {} // player stat decrease
             119 => {} // player stat reroll
             125 => {} // player entered Hall of Flame
+            130 => {
+                // the super-rare full team reverb. players are not swapped but instead the entire
+                // roster is shuffled, so there's no information in the feed about the new lineup
+                // order. we have some options for how to tackle this:
+                //
+                // 1) fetch the new roster from chronicler. since gamma10 rosters are no longer
+                //    delivered via real-time data, so the timing is unreliable. we could fetch a
+                //    minute after this event (chronicler polls once a minute); the likelihood of
+                //    two reverbs within that time window is extremely rare, but possible.
+                // 2) hard-code the new lineup order. because this is an extremely rare game event
+                //    (seen five times in all of blaseball through gamma10), it's unlikely this
+                //    will need to change very often.
+                //
+                // we're choosing to hard-code it for now; switching from one option to the other
+                // is not impossible.
+                //
+                // this only sets the new lineup order. pitching changes (if any) are handled
+                // through type 3.
+                let (team, new_lineup) = match event.id.as_u128() {
+                    0xc356ff2e27a54ad8bc0779e8938dcc81 => (
+                        &mut self.game.away,
+                        vec![
+                            "44ea08d7-a17d-403c-aeb1-8d88aac205cb",
+                            "58f5f024-2be4-4c0c-8591-d096da1fa07b",
+                            "60a4ff31-8440-4cbf-859e-5db28e96d8e7",
+                            "bdf1bacb-13a2-42fb-9a58-72d209facd5d",
+                            "9c263b3a-4f63-4e5e-8b91-6af9d884cf67",
+                            "6ee88310-d724-4049-a56d-58148e5175e0",
+                            "224caceb-6b5d-4bdd-adc3-1c4691f47490",
+                            "cdeb0793-45b9-493f-b250-d2c60055b340",
+                            "9c72852e-4486-42c1-8a6c-a08e1dcaffb1",
+                        ],
+                    ),
+                    _ => {
+                        checkdesc!(false);
+                        unreachable!(); // hmm
+                    }
+                };
+                ensure!(
+                    team.lineup.len() == new_lineup.len(),
+                    "lineup size mismatch"
+                );
+                for (player, position) in new_lineup.iter().zip(&mut team.lineup) {
+                    let player: Uuid = player.parse()?;
+                    if position.last() != Some(&player) {
+                        position.push(player);
+                    }
+                }
+            }
             132 => {
                 checkdesc!(desc.ends_with("had their rotation shuffled in the Reverb!"));
                 // do nothing, because type 3 will follow
