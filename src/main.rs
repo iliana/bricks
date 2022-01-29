@@ -79,7 +79,10 @@ async fn process_game_or_log(season: Season, id: Uuid, force: bool) {
 }
 
 async fn start_task() -> Result<()> {
-    let force = {
+    let force = if std::env::args_os().any(|arg| arg == "--rebuild-test") {
+        log::info!("--rebuild-test passed, rebuilding");
+        true
+    } else {
         let version = DB.get("version")?;
         if version.is_none() {
             DB.clear()?;
@@ -92,13 +95,16 @@ async fn start_task() -> Result<()> {
                 version,
                 Some(DB_VERSION)
             );
-            REBUILDING.store(true, Ordering::Relaxed);
-            for tree in CLEAR_ON_REBUILD {
-                DB.drop_tree(tree)?;
-            }
             true
         }
     };
+
+    if force {
+        REBUILDING.store(true, Ordering::Relaxed);
+        for tree in CLEAR_ON_REBUILD {
+            DB.drop_tree(tree)?;
+        }
+    }
 
     seasons::load().await?;
 
