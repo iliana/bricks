@@ -214,38 +214,22 @@ impl State {
             ensure!(self.game_finished || event.ty == 11, "game over mismatch");
         }
 
-        for (team, pitcher, pitcher_name, is_defense) in [
-            (
-                &mut self.game.away,
-                &event.away_pitcher,
-                &event.away_pitcher_name,
-                !self.top_of_inning,
-            ),
-            (
-                &mut self.game.home,
-                &event.home_pitcher,
-                &event.home_pitcher_name,
-                self.top_of_inning,
-            ),
+        for (away, pitcher, pitcher_name) in [
+            (true, &event.away_pitcher, &event.away_pitcher_name),
+            (false, &event.home_pitcher, &event.home_pitcher_name),
         ] {
             if let (Some(pitcher), Some(pitcher_name)) = (pitcher, pitcher_name) {
-                if !team.player_names.contains_key(pitcher) {
-                    team.player_names.insert(*pitcher, pitcher_name.to_owned());
-                }
-
-                if team.pitchers.len() == 1 && team.pitchers[0] == Uuid::default() {
-                    team.pitchers[0] = *pitcher;
-                    team.pitcher_of_record = *pitcher;
-                    if let Some(stats) = team.stats.remove(&Uuid::default()) {
-                        team.stats.insert(*pitcher, stats);
-                    }
-                    if is_defense {
-                        for runner in &mut self.on_base {
-                            if runner.pitcher == Uuid::default() {
-                                runner.pitcher = *pitcher;
-                            }
-                        }
-                    }
+                if self.placeholder_pitcher(away) {
+                    self.fix_placeholder_pitcher(away, *pitcher, pitcher_name)?;
+                } else {
+                    let team = if away {
+                        &mut self.game.away
+                    } else {
+                        &mut self.game.home
+                    };
+                    team.player_names
+                        .entry(*pitcher)
+                        .or_insert_with(|| pitcher_name.to_string());
                 }
             }
         }
@@ -696,6 +680,41 @@ impl State {
         }
     }
 
+    fn placeholder_pitcher(&self, away: bool) -> bool {
+        let team = if away {
+            &self.game.away
+        } else {
+            &self.game.home
+        };
+        team.pitchers.len() == 1 && team.pitchers[0] == Uuid::default()
+    }
+
+    fn fix_placeholder_pitcher(&mut self, away: bool, id: Uuid, name: &str) -> Result<()> {
+        ensure!(
+            self.placeholder_pitcher(away),
+            "incorrectly fixing placeholder pitcher"
+        );
+        let team = if away {
+            &mut self.game.away
+        } else {
+            &mut self.game.home
+        };
+        team.pitchers[0] = id;
+        team.pitcher_of_record = id;
+        team.player_names.insert(id, name.to_string());
+        if let Some(stats) = team.stats.remove(&Uuid::default()) {
+            team.stats.insert(id, stats);
+        }
+        if away ^ self.top_of_inning {
+            for runner in &mut self.on_base {
+                if runner.pitcher == Uuid::default() {
+                    runner.pitcher = id;
+                }
+            }
+        }
+        Ok(())
+    }
+
     async fn start_event(&mut self, event: &GameEvent) -> Result<()> {
         self.game.day = event.day;
         self.game.weather = event.metadata.weather.context("missing weather")?;
@@ -739,6 +758,21 @@ impl State {
             for player in data.lineup {
                 team.lineup.push(vec![player]);
             }
+        }
+
+        if event.id.as_u128() == 0xfbee746f8a67428e896f6c039cab083c {
+            // At initial processing time, 3323cff9-881c-4114-bcdc-87622bc9f218 was missing data in
+            // Chronicler. This hardcoded data is sourced from the backup archiver.
+            self.fix_placeholder_pitcher(
+                true,
+                "e878bdc3-5525-4808-912a-5dbab25c24e7".parse()?,
+                "Hazel Smithson",
+            )?;
+            self.fix_placeholder_pitcher(
+                false,
+                "f5c7b329-71aa-4241-a8df-bf34d106f757".parse()?,
+                "Yahya Jupiter",
+            )?;
         }
 
         Ok(())
