@@ -108,14 +108,21 @@ async fn start_task() -> Result<()> {
 
     seasons::load().await?;
 
+    // perform api.blaseball.com requests first to avoid server-side HTTP timeouts due to heavy I/O
+    let mut schedules = Vec::new();
     for season in Season::known()? {
         if season.sim == "thisidisstaticyo" || season.sim == "gamma4" {
             continue;
         }
         if let Some(last_day) = schedule::last_day(&season).await? {
-            for game_id in schedule::load(&season, 0, last_day).await? {
-                process_game_or_log(season.clone(), game_id, force).await;
-            }
+            let games = schedule::load(&season, 0, last_day).await?;
+            schedules.push((season, games));
+        }
+    }
+
+    for (season, games) in schedules {
+        for game in games {
+            process_game_or_log(season.clone(), game, force).await;
         }
     }
 
