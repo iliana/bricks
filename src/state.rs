@@ -388,14 +388,30 @@ impl State {
             }
             12 => {
                 // Start of plate appearance
-                ensure!(event.player_tags.len() == 1, "invalid player tag count");
-                if let Some((name, _)) = desc.rsplit_once(" batting for the ") {
-                    self.offense_mut()
-                        .player_names
-                        .insert(event.player_tags[0], name.into());
-                    self.at_bat = Some(event.player_tags[0]);
+                if event.player_tags.len() == 2
+                    && desc.contains("is Inhabiting")
+                    && !desc.contains("batting for the")
+                {
+                    let position = self
+                        .offense_mut()
+                        .positions_mut()
+                        .find(|position| position.last() == Some(&event.player_tags[1]))
+                        .context("unable to find position for inhabited player")?;
+                    position.push(event.player_tags[0]);
+                    position.push(event.player_tags[1]);
                 } else {
-                    checkdesc!(false);
+                    ensure!(
+                        event.player_tags.len() == 1 || event.player_tags.len() == 2,
+                        "invalid player tag count"
+                    );
+                    if let Some((name, _)) = desc.rsplit_once(" batting for the ") {
+                        self.offense_mut()
+                            .player_names
+                            .insert(event.player_tags[0], name.into());
+                        self.at_bat = Some(event.player_tags[0]);
+                    } else {
+                        checkdesc!(false);
+                    }
                 }
             }
             13 => {
