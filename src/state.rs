@@ -9,8 +9,31 @@ use std::cmp::Ordering;
 use std::collections::HashSet;
 use uuid::Uuid;
 
+type PitcherData = (u128, [(u128, &'static str); 2]);
+
+const HARDCODED_PITCHERS: &[PitcherData] = &[
+    // At initial processing time, 3323cff9-881c-4114-bcdc-87622bc9f218 was missing data in
+    // Chronicler. This hardcoded data is sourced from the backup archiver.
+    (
+        0x3323cff9881c4114bcdc87622bc9f218,
+        [
+            (0xe878bdc355254808912a5dbab25c24e7, "Hazel Smithson"),
+            (0xf5c7b32971aa4241a8dfbf34d106f757, "Yahya Jupiter"),
+        ],
+    ),
+];
+
+#[cfg(test)]
+#[test]
+fn test_hardcoded_pitchers_sorted() {
+    let mut v = HARDCODED_PITCHERS.to_vec();
+    v.sort();
+    assert_eq!(v, HARDCODED_PITCHERS);
+}
+
 #[derive(Debug, Serialize)]
 pub struct State {
+    id: Uuid,
     game: Game,
     game_started: bool,
     game_finished: bool,
@@ -33,15 +56,22 @@ pub struct State {
 }
 
 impl State {
-    pub fn new(season: Season) -> State {
+    pub fn new(season: Season, id: Uuid) -> State {
         let mut game = Game {
             season,
             ..Default::default()
         };
-        for team in game.teams_mut() {
-            team.pitchers.push(Uuid::default());
+
+        let data = match HARDCODED_PITCHERS.binary_search_by_key(&id.as_u128(), |(id, _)| *id) {
+            Ok(idx) => HARDCODED_PITCHERS[idx],
+            Err(_) => Default::default(),
+        };
+        for (team, pitcher) in game.teams_mut().zip(data.1) {
+            let id = Uuid::from_u128(pitcher.0);
+            team.pitchers.push(id);
+            team.player_names.insert(id, pitcher.1.into());
             team.stats.insert(
-                Uuid::default(),
+                id,
                 Stats {
                     games_started: 1,
                     ..Stats::default()
@@ -50,6 +80,7 @@ impl State {
         }
 
         State {
+            id,
             game,
             game_started: false,
             game_finished: false,
@@ -215,23 +246,31 @@ impl State {
             ensure!(self.game_finished || event.ty == 11, "game over mismatch");
         }
 
-        for (away, pitcher, pitcher_name) in [
-            (true, &event.away_pitcher, &event.away_pitcher_name),
-            (false, &event.home_pitcher, &event.home_pitcher_name),
+        for (team, is_defense, pitcher, pitcher_name) in [
+            (
+                &mut self.game.away,
+                !self.top_of_inning,
+                &event.away_pitcher,
+                &event.away_pitcher_name,
+            ),
+            (
+                &mut self.game.home,
+                self.top_of_inning,
+                &event.home_pitcher,
+                &event.home_pitcher_name,
+            ),
         ] {
             if let (Some(pitcher), Some(pitcher_name)) = (pitcher, pitcher_name) {
-                if self.placeholder_pitcher(away) {
-                    self.fix_placeholder_pitcher(away, *pitcher, pitcher_name)?;
-                } else {
-                    let team = if away {
-                        &mut self.game.away
-                    } else {
-                        &mut self.game.home
-                    };
-                    team.player_names
-                        .entry(*pitcher)
-                        .or_insert_with(|| pitcher_name.to_string());
+                if team.replace_placeholder_pitcher(*pitcher, pitcher_name) && is_defense {
+                    for runner in &mut self.on_base {
+                        if runner.pitcher == Uuid::default() {
+                            runner.pitcher = *pitcher;
+                        }
+                    }
                 }
+                team.player_names
+                    .entry(*pitcher)
+                    .or_insert_with(|| pitcher_name.to_string());
             }
         }
 
@@ -248,24 +287,34 @@ impl State {
             2 => self.next_half_inning()?,
             3 => {
                 // Pitcher change
-                if [
-                    0xf69ea0c42e114a0abeb8631a639eb6fd,
-                    0xd22f5032bc7d4825b2494126a259fa3c,
-                    0x4cebce3a917d45da8733d97fe529e0e0,
-                    0xfc41a23a14c94b4380ff4bb3883aaf1b,
-                ]
-                .contains(&event.id.as_u128())
-                {
-                    // Gamma 3, Season 1, Day 167 had an issue where the starting pitchers, game
-                    // odds, etc were not set prior to game start. This resulted in a pitcher
-                    // change event at the beginning of the game. We handled setting the pitcher
-                    // correctly above, so just ignore this event.
-                } else if let Some((name, _)) = desc.rsplit_once(" is now pitching for the ") {
+                if let Some((name, _)) = desc.rsplit_once(" is now pitching for the ") {
                     ensure!(event.player_tags.len() == 1, "invalid player tag count");
 
-                    self.ensure_pitchers_known()?;
+                    if let Err(err) = self.ensure_pitchers_known() {
+                        // Starting in gamma9, the sim does not correctly set the pitcher before
+                        // the start of a tournament's first game, leading to a pitcher change
+                        // event at the start of each half of the first inning because the sim is
+                        // changing the pitcher from "null" to whoever the starting pitcher is. If
+                        // it's the first inning and the starting pitcher is a placeholder who has
+                        // not yet thrown the ball, we should ignore this error.
+                        ensure!(
+                            self.inning == 1
+                                && self.defense().pitchers.len() == 1
+                                && self.defense_stats(self.pitcher())
+                                    == &Stats {
+                                        games_started: 1,
+                                        ..Default::default()
+                                    },
+                            err
+                        );
 
-                    if self.defense().pitchers.last() != Some(&event.player_tags[0]) {
+                        // If we still have placeholder pitcher data for the defense, fill in the
+                        // data we now have so that the pitcher change branch below doesn't run.
+                        self.defense_mut()
+                            .replace_placeholder_pitcher(event.player_tags[0], name);
+                    }
+
+                    if self.pitcher() != event.player_tags[0] {
                         // starting pitchers must pitch 5 innings to be credited for the win. clear
                         // the pitcher of record if they are not eligible to record the win; if the
                         // losing team's pitcher is still cleared by the end of the game, fill it
@@ -436,6 +485,7 @@ impl State {
             }
             20 => {} // Shame!
             23 => {} // player skipped (Elsewhere or Shelled)
+            24 => {} // partying
             28 => {} // end of inning
             41 => {
                 if desc.ends_with("switch teams in the feedback!") {
@@ -680,41 +730,6 @@ impl State {
         }
     }
 
-    fn placeholder_pitcher(&self, away: bool) -> bool {
-        let team = if away {
-            &self.game.away
-        } else {
-            &self.game.home
-        };
-        team.pitchers.len() == 1 && team.pitchers[0] == Uuid::default()
-    }
-
-    fn fix_placeholder_pitcher(&mut self, away: bool, id: Uuid, name: &str) -> Result<()> {
-        ensure!(
-            self.placeholder_pitcher(away),
-            "incorrectly fixing placeholder pitcher"
-        );
-        let team = if away {
-            &mut self.game.away
-        } else {
-            &mut self.game.home
-        };
-        team.pitchers[0] = id;
-        team.pitcher_of_record = id;
-        team.player_names.insert(id, name.to_string());
-        if let Some(stats) = team.stats.remove(&Uuid::default()) {
-            team.stats.insert(id, stats);
-        }
-        if away ^ self.top_of_inning {
-            for runner in &mut self.on_base {
-                if runner.pitcher == Uuid::default() {
-                    runner.pitcher = id;
-                }
-            }
-        }
-        Ok(())
-    }
-
     async fn start_event(&mut self, event: &GameEvent) -> Result<()> {
         self.game.day = event.day;
         self.game.weather = event.metadata.weather.context("missing weather")?;
@@ -758,21 +773,6 @@ impl State {
             for player in data.lineup {
                 team.lineup.push(vec![player]);
             }
-        }
-
-        if event.id.as_u128() == 0xfbee746f8a67428e896f6c039cab083c {
-            // At initial processing time, 3323cff9-881c-4114-bcdc-87622bc9f218 was missing data in
-            // Chronicler. This hardcoded data is sourced from the backup archiver.
-            self.fix_placeholder_pitcher(
-                true,
-                "e878bdc3-5525-4808-912a-5dbab25c24e7".parse()?,
-                "Hazel Smithson",
-            )?;
-            self.fix_placeholder_pitcher(
-                false,
-                "f5c7b329-71aa-4241-a8df-bf34d106f757".parse()?,
-                "Yahya Jupiter",
-            )?;
         }
 
         Ok(())

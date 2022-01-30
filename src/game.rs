@@ -34,7 +34,7 @@ pub async fn process(season: Season, id: Uuid, force: bool) -> Result<bool> {
         let recorded_tree = DB.open_tree(seasons::RECORDED_TREE)?;
         let schedule_tree = DB.open_tree(schedule::TREE)?;
 
-        let mut state = State::new(season);
+        let mut state = State::new(season, id);
         let mut debug_log = Vec::new();
         let mut old = Value::default();
         let feed = crate::feed::load(id).await?;
@@ -272,6 +272,20 @@ impl Team {
 
     pub fn positions_mut(&mut self) -> impl Iterator<Item = &mut Vec<Uuid>> {
         self.lineup.iter_mut().chain([&mut self.pitchers])
+    }
+
+    pub fn replace_placeholder_pitcher(&mut self, id: Uuid, name: &str) -> bool {
+        if self.pitchers == [Uuid::default()] {
+            self.pitchers[0] = id;
+            self.pitcher_of_record = id;
+            if let Some(stats) = self.stats.remove(&Uuid::default()) {
+                self.stats.insert(id, stats);
+            }
+            self.player_names.entry(id).or_insert_with(|| name.into());
+            true
+        } else {
+            false
+        }
     }
 }
 
