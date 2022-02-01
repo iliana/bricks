@@ -21,6 +21,15 @@ const HARDCODED_PITCHERS: &[PitcherData] = &[
             (0xf5c7b32971aa4241a8dfbf34d106f757, "Yahya Jupiter"),
         ],
     ),
+    // At initial processing time, 58ebff22-b6cd-4197-a6e3-c6b168820731 was missing data in
+    // Chronicler. This hardcoded data is sourced from the backup archiver.
+    (
+        0x58ebff22b6cd4197a6e3c6b168820731,
+        [
+            (0xbceb9f6c065a4c80b67b596507b0703d, "Toby Topaz"),
+            (0x1074529b1eb04533890b6a0b00316632, "Aisha Badri"),
+        ],
+    ),
 ];
 
 #[cfg(test)]
