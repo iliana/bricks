@@ -243,7 +243,11 @@ impl State {
         self.expected = event.expect(self.expected)?;
 
         if self.is_game_over() {
-            ensure!(self.game_finished || event.ty == 11, "game over mismatch");
+            if event.ty == 107 && event.metadata.r#mod.as_deref() == Some("INHABITING") {
+                // sometimes this happens!
+            } else {
+                ensure!(self.game_finished || event.ty == 11, "game over mismatch");
+            }
         }
 
         for (team, is_defense, pitcher, pitcher_name) in [
