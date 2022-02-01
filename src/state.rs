@@ -879,7 +879,12 @@ impl State {
             self.record_batter_event(|s| &mut s.double_plays_grounded_into)?;
             self.record_pitcher_event(|s| &mut s.groundouts_pitched)?;
             self.record_pitcher_event(|s| &mut s.outs_recorded)?;
-            if self.on_base.len() == 1 {
+            if event.id.as_u128() == 0x3fdb026f97a3401385ee44f935c26f01 {
+                // missing data in Chronicler at the start of 5ffbde13-1807-4694-9d13-861c6302b384.
+                // the runner put out was Craig Faucet.
+                self.remove_runner(Uuid::from_u128(0xe34b37e1b47448ed8a657e182733996c))?;
+                self.offense_stats(self.batter()?).left_on_base += 1;
+            } else if self.on_base.len() == 1 {
                 self.on_base.clear();
                 self.offense_stats(self.batter()?).left_on_base += 1;
             } else if self.half_inning_outs == 2 {
