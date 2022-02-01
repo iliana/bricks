@@ -240,6 +240,13 @@ impl State {
     }
 
     async fn push_inner(&mut self, event: &GameEvent) -> Result<()> {
+        if event.id.as_u128() == 0x2ca7226183224b86af4e570aa0dd1deb {
+            // something bizarre happened in gmae f52eedb9-da6e-45db-8147-3b64fb260dbb -- the sim
+            // paused for about 39 seconds after a type 12 ("batting for the") event, then repeated
+            // the same event with the same play and subplay numbers. skip the first one.
+            return Ok(());
+        }
+
         self.expected = event.expect(self.expected)?;
 
         if self.is_game_over() {
