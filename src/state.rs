@@ -804,6 +804,26 @@ impl State {
             .any(|runner| runner.base >= 1)
     }
 
+    fn remove_runner_base(&mut self, id: Uuid, base: u16) -> Result<Option<Runner>> {
+        match self
+            .on_base
+            .iter()
+            .enumerate()
+            .filter(|(_, runner)| runner.id == id && runner.base == base)
+            .at_most_one()
+        {
+            Ok(Some((index, _))) => Ok(Some(self.on_base.remove(index))),
+            Ok(None) => {
+                // it's possible our base data is bad, so fall back to hoping that there's only one
+                // of this player on base
+                self.remove_runner(id)
+            }
+            Err(_) => {
+                bail!("can't determine which {} to remove from base {}", id, base)
+            }
+        }
+    }
+
     fn remove_runner(&mut self, id: Uuid) -> Result<Option<Runner>> {
         match self
             .on_base
@@ -861,7 +881,7 @@ impl State {
     }
 
     fn fielded_out(&mut self, event: &GameEvent) -> Result<()> {
-        if let Some((out, _)) = event.description.rsplit_once(" out at ") {
+        if let Some((out, base)) = event.description.rsplit_once(" out at ") {
             // fielder's choice
             self.record_pitcher_event(|s| &mut s.groundouts_pitched)?;
             let out = *self
@@ -871,8 +891,14 @@ impl State {
                 .find(|(_, name)| name == &out)
                 .with_context(|| format!("could not determine id for baserunner {}", out))?
                 .0;
+            let base = match base {
+                "second base." => 0,
+                "third base." => 1,
+                "fourth base." => 2,
+                _ => bail!("unexpected base for fielder's choice"),
+            };
             let pitcher = self
-                .remove_runner(out)?
+                .remove_runner_base(out, base)?
                 .context("baserunner out in fielder's choice not on base")?
                 .pitcher;
             self.on_base.push(Runner {
