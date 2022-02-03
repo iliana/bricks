@@ -79,9 +79,9 @@
     {% endif %}
     <a href="/game/{{ entry.id }}">
       <title>
-        {{ loop.index }}. Day {{ entry.day + 1 }}, {{ team.shorthand }} ({{ record.wins }}-{{ record.losses }}) {% if
-        entry.won %}beat{% else %}lost to{% endif %} {{ entry.opponent.shorthand }}, {{ entry.score }}-{{
-        entry.opponent_score }}
+        {% if !entry.is_special() %}{{ record.wins + record.losses }}. {% endif %}Day {{ entry.day + 1 }}, {{
+        team.shorthand }} ({{ record.wins }}-{{ record.losses }}) {% if entry.won %}beat{% else %}lost to{% endif %} {{
+        entry.opponent.shorthand }}, {{ entry.score }}-{{ entry.opponent_score }}
       </title>
       <!-- prettier-ignore -->
       {% call rect(loop.index0, -(ceiling + 1), 1, ceiling - floor + 2, "text-yellow-500 opacity-0 hover:opacity-30") %}

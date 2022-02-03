@@ -294,6 +294,10 @@ impl State {
             }
         }
 
+        if event.is_title_match == Some(true) && self.game.season.sim == "gamma10" {
+            self.game.kind = Kind::Special;
+        }
+
         let desc = &event.description;
         macro_rules! checkdesc {
             ($expr:expr) => {
@@ -642,7 +646,9 @@ impl State {
             137 => {} // player hatched
             193 => {
                 // prize match
-                self.game.kind = Kind::Special;
+                if self.game.season.sim == "gamma10" {
+                    self.game.kind = Kind::Special;
+                }
             }
             209 => {} // score message
             214 => {} // collected a Win
@@ -767,7 +773,9 @@ impl State {
                 Kind::Regular
             }
         } else if self.game.season.sim == "gamma10" {
-            if self.game.day >= 219 {
+            if self.game.day >= 112 && self.game.day <= 115 {
+                Kind::Special
+            } else if self.game.day >= 219 {
                 // probably gonna have to fix this
                 Kind::Postseason
             } else {

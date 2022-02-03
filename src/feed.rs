@@ -73,6 +73,8 @@ pub struct GameEvent {
     pub away_pitcher_name: Option<String>,
     pub home_pitcher: Option<Uuid>,
     pub home_pitcher_name: Option<String>,
+
+    pub is_title_match: Option<bool>,
 }
 
 impl GameEvent {

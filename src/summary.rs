@@ -1,4 +1,4 @@
-use crate::game::{Game, Stats};
+use crate::game::{Game, Kind, Stats};
 use crate::{seasons::Season, DB};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -17,6 +17,10 @@ pub fn write_summary(
     season_tree: &TransactionalTree,
     game: &Game,
 ) -> ConflictableTransactionResult<(), serde_json::Error> {
+    if game.kind == Kind::Special {
+        return Ok(());
+    }
+
     let mut totals = Stats::default();
 
     for team in game.teams() {
