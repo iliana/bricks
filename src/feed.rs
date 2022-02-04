@@ -2,13 +2,14 @@ use crate::{CLIENT, DB, SACHET_BASE};
 use anyhow::{bail, Result};
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
+use serde_json::Number;
 use uuid::Uuid;
 
 pub async fn load(game_id: Uuid) -> Result<Vec<GameEvent>> {
     let tree = DB.open_tree("cache_sachet_v1")?;
     if let Some(data) = tree.get(game_id.as_bytes())? {
         let mut events: Vec<GameEvent> = serde_json::from_slice(&data)?;
-        events.sort_unstable();
+        sort(&mut events);
         if check(&events) {
             return Ok(events);
         } else {
@@ -24,7 +25,7 @@ pub async fn load(game_id: Uuid) -> Result<Vec<GameEvent>> {
         .text()
         .await?;
     let mut events: Vec<GameEvent> = serde_json::from_str(&data)?;
-    events.sort_unstable();
+    sort(&mut events);
     // if this check fails, return anyway so we can get debug output, but don't cache
     if check(&events) {
         tree.insert(game_id.as_bytes(), data.into_bytes())?;
@@ -32,6 +33,10 @@ pub async fn load(game_id: Uuid) -> Result<Vec<GameEvent>> {
         log::warn!("not caching feed for {}", game_id);
     }
     Ok(events)
+}
+
+fn sort(feed: &mut Vec<GameEvent>) {
+    feed.sort_unstable_by_key(|event| (event.metadata.play, event.metadata.sub_play));
 }
 
 fn check(feed: &[GameEvent]) -> bool {
@@ -50,10 +55,9 @@ fn check(feed: &[GameEvent]) -> bool {
         .any(|event| event.ty == 214 || event.ty == 215)
 }
 
-#[derive(Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GameEvent {
-    // must be first to sort
     pub metadata: GameEventMetadata,
 
     pub id: Uuid,
@@ -100,10 +104,9 @@ impl GameEvent {
     }
 }
 
-#[derive(Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GameEventMetadata {
-    // play and sub_play must be first to sort
     pub play: u16,
     pub sub_play: u16,
     pub sibling_ids: Vec<Uuid>,
@@ -116,14 +119,22 @@ pub struct GameEventMetadata {
     pub extra: Option<ExtraData>,
 }
 
-#[derive(Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Deserialize)]
 #[serde(untagged)]
 pub enum ExtraData {
+    Score(ScoreData),
     Swap(PlayerSwapData),
     Incineration(IncinerationReplacementData),
 }
 
-#[derive(Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScoreData {
+    pub away_score: Number,
+    pub home_score: Number,
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlayerSwapData {
     pub a_player_id: Uuid,
@@ -133,7 +144,7 @@ pub struct PlayerSwapData {
     pub team_id: Uuid,
 }
 
-#[derive(Debug, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IncinerationReplacementData {
     pub in_player_id: Uuid,

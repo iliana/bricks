@@ -650,7 +650,24 @@ impl State {
                     self.game.kind = Kind::Special;
                 }
             }
-            209 => {} // score message
+            209 => {
+                // score update
+                let score = match &event.metadata.extra {
+                    Some(ExtraData::Score(data)) => data,
+                    _ => bail!("missing score data"),
+                };
+                for (team, score) in self
+                    .game
+                    .teams()
+                    .zip([&score.away_score, &score.home_score])
+                {
+                    ensure!(
+                        u64::from(team.runs())
+                            == score.as_u64().context("score is not unsigned integer")?,
+                        "score mismatch"
+                    );
+                }
+            }
             214 => {} // collected a Win
             215 => {} // collected a Win (postseason, sometimes)
             216 => {} // game over
