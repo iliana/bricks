@@ -492,6 +492,7 @@ impl State {
                 checkdesc!(
                     desc.starts_with("Strike, looking.")
                         || desc.starts_with("Strike, swinging.")
+                        || desc.starts_with("Strike, flinching.")
                         || desc.starts_with("Strikes, looking.")
                         || desc.starts_with("Strikes, swinging.")
                 );
